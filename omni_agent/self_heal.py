@@ -44,22 +44,7 @@ class SelfHealer:
         raise ValueError(f"Unsafe file path rejected: {relative_path}")
 
     def monitor(self, task: str, context: dict, error: Exception) -> Dict:
-        """Analyse *error* that occurred during *task* and attempt self-healing.
-
-        Parameters
-        ----------
-        task:
-            The task that was being executed when the error occurred.
-        context:
-            The context dictionary passed to the failing agent.
-        error:
-            The exception that was raised.
-
-        Returns
-        -------
-        dict
-            A status payload describing the healing outcome.
-        """
+        """Analyse *error* that occurred during *task* and attempt self-healing."""
         error_trace = traceback.format_exc()
         self.logger.error("Error in task '%s': %s", task, error_trace)
 
@@ -75,26 +60,8 @@ class SelfHealer:
             "diagnosis": diagnosis,
         }
 
-    def _diagnose_error(
-        self, task: str, context: dict, error_trace: str
-    ) -> Dict:
-        """Use Mistral to produce a structured diagnosis of the error.
-
-        Parameters
-        ----------
-        task:
-            Task description.
-        context:
-            Context dictionary.
-        error_trace:
-            Full traceback string.
-
-        Returns
-        -------
-        dict
-            Diagnosis with keys ``error_type``, ``root_cause``, ``fixable``,
-            and ``suggested_fix``.
-        """
+    def _diagnose_error(self, task: str, context: dict, error_trace: str) -> Dict:
+        """Use Mistral to produce a structured diagnosis of the error."""
         prompt = (
             "Omni-Agent encountered an error. Analyse and suggest fixes.\n\n"
             f"Task: {task}\n"
@@ -185,18 +152,7 @@ class SelfHealer:
         return parsed
 
     def _apply_fix(self, diagnosis: Dict) -> Dict:
-        """Apply the fix recommended in *diagnosis*.
-
-        Parameters
-        ----------
-        diagnosis:
-            Structured diagnosis dict produced by :meth:`_diagnose_error`.
-
-        Returns
-        -------
-        dict
-            Outcome payload.
-        """
+        """Apply the fix recommended in *diagnosis*."""
         fix = diagnosis.get("suggested_fix", {})
         fix_type = fix.get("type", "")
 
@@ -256,6 +212,7 @@ class SelfHealer:
                 }
 
             try:
+                compile(new_code, str(resolved), "exec")
                 resolved.parent.mkdir(parents=True, exist_ok=True)
                 resolved.write_text(new_code, encoding="utf-8")
                 return {

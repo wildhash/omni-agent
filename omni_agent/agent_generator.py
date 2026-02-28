@@ -155,6 +155,11 @@ class AgentGenerator:
             self._validate_generated_module(agent_code, class_name)
 
             file_path = self._agent_file_path(normalized_type)
+            if file_path.exists():
+                return {
+                    "status": "error",
+                    "message": f"Agent file already exists: {file_path}",
+                }
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(agent_code, encoding="utf-8")
 
@@ -230,6 +235,10 @@ class AgentGenerator:
         agent_type:
             CamelCase base name for the new agent (e.g. ``"Voice"``). Passing
             ``"VoiceAgent"`` is also accepted and normalized.
+        requirements:
+            Free-form description of what the agent must do.
+        agent_key:
+            Optional routing key for orchestrator registration.
 
         Returns
         -------

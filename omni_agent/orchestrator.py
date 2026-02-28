@@ -53,14 +53,6 @@ class AgentOrchestrator:
             return self.self_healer.monitor(task, context, exc)
 
     def add_agent(self, name: str, agent: Any) -> str:
-        """Dynamically register a new agent.
-
-        Parameters
-        ----------
-        name:
-            Key used to identify the agent.
-        agent:
-            Agent instance to register.
-        """
+        """Dynamically register a new agent."""
         self.agents[name] = agent
         return f"Added {name} agent."

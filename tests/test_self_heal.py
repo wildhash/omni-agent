@@ -24,7 +24,8 @@ def test_monitor_unfixable():
     assert "error" in result
 
 
-def test_monitor_fixable_new_agent():
+def test_monitor_fixable_new_agent(monkeypatch):
+    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "error_type": "MissingAgent",
@@ -33,6 +34,7 @@ def test_monitor_fixable_new_agent():
         "suggested_fix": {
             "type": "new_agent",
             "details": "missing VoiceAgent",
+            "agent_type": "Voice",
             "code_snippet": "",
         },
     }
@@ -78,7 +80,8 @@ def test_diagnose_error_handles_invalid_json():
     assert result["fixable"] is False
 
 
-def test_apply_fix_config_update():
+def test_apply_fix_config_update(monkeypatch):
+    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -88,7 +91,8 @@ def test_apply_fix_config_update():
     assert result["status"] == "not_implemented"
 
 
-def test_apply_fix_unknown_type():
+def test_apply_fix_unknown_type(monkeypatch):
+    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -98,18 +102,20 @@ def test_apply_fix_unknown_type():
     assert result["status"] == "unknown_fix_type"
 
 
-def test_apply_fix_new_agent_empty_details():
+def test_apply_fix_new_agent_empty_details(monkeypatch):
+    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
-        "suggested_fix": {"type": "new_agent", "details": "", "code_snippet": ""},
+        "suggested_fix": {"type": "new_agent", "details": "", "agent_type": "", "code_snippet": ""},
     }
     result = healer._apply_fix(diagnosis)
     assert result["status"] == "failed"
     assert "agent type" in result["error"].lower()
 
 
-def test_apply_fix_code_change_empty_details():
+def test_apply_fix_code_change_empty_details(monkeypatch):
+    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -117,16 +123,17 @@ def test_apply_fix_code_change_empty_details():
     }
     result = healer._apply_fix(diagnosis)
     assert result["status"] == "failed"
-    assert "file path" in result["error"].lower()
+    assert "file_path" in result["error"].lower()
 
 
-def test_apply_fix_code_change_path_traversal():
+def test_apply_fix_code_change_path_traversal(monkeypatch):
+    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
         "suggested_fix": {
             "type": "code_change",
-            "details": "/etc/passwd extra",
+            "file_path": "/etc/passwd",
             "code_snippet": "malicious",
         },
     }

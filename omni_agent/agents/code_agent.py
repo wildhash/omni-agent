@@ -67,7 +67,10 @@ class CodeAgent:
         elif "improve" in task_lower:
             return self._improve_code(context.get("code", ""), task)
         elif "generate agent" in task_lower:
-            return self._generate_agent(context.get("agent_type", ""))
+            return self._generate_agent(
+                context.get("agent_type", ""),
+                requirements=context.get("requirements", ""),
+            )
         elif "docker" in task_lower or "container" in task_lower:
             return self._containerize(context)
         else:
@@ -106,26 +109,14 @@ class CodeAgent:
             return {"error": "Execution timed out."}
 
     def _debug(self, code: str) -> Dict:
-        """Provide static debugging hints for *code*.
-
-        Parameters
-        ----------
-        code:
-            Python source code to analyse.
-        """
+        """Provide static debugging hints for *code*."""
         return {
             "analysis": "Code looks syntactically correct. Add print statements for debugging.",
             "suggested_fixes": ["Add logging.", "Check variable types."],
         }
 
     def _containerize(self, context: Dict) -> Dict:
-        """Build a Docker image for the application described in *context*.
-
-        Parameters
-        ----------
-        context:
-            Dictionary with optional keys: 'path', 'dockerfile', 'tag'.
-        """
+        """Build a Docker image for the application described in *context*."""
         if os.getenv("OMNI_AGENT_ENABLE_DOCKER_BUILD") != "1":
             return {
                 "error": "Docker builds are disabled by default. Set OMNI_AGENT_ENABLE_DOCKER_BUILD=1 to enable.",
@@ -144,15 +135,7 @@ class CodeAgent:
             return {"error": str(exc)}
 
     def _improve_code(self, code: str, task: str) -> Dict:
-        """Use Mistral to improve *code* with respect to *task*.
-
-        Parameters
-        ----------
-        code:
-            Existing Python source code to refine.
-        task:
-            Description of what the code should do.
-        """
+        """Use Mistral to improve *code* with respect to *task*."""
         try:
             improved = self.mistral.improve_code(code, task)
             return {
@@ -163,19 +146,12 @@ class CodeAgent:
         except Exception as exc:
             return {"error": str(exc)}
 
-    def _generate_agent(self, agent_type: str) -> Dict:
-        """Dynamically generate a new agent class using Mistral.
-
-        Parameters
-        ----------
-        agent_type:
-            CamelCase base name for the new agent (e.g. ``"Voice"``). Passing
-            ``"VoiceAgent"`` is also accepted and normalized.
-        """
+    def _generate_agent(self, agent_type: str, requirements: str = "") -> Dict:
+        """Generate an agent file via :class:`~omni_agent.agent_generator.AgentGenerator`."""
         try:
             result = self.agent_generator.generate_agent(
                 agent_type,
-                requirements="Generated via CodeAgent.",
+                requirements=requirements or "Generated via CodeAgent.",
             )
             if result.get("status") == "success":
                 try:

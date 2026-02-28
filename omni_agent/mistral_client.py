@@ -26,6 +26,7 @@ class MistralClient:
         self.api_key: Optional[str] = os.getenv("MISTRAL_API_KEY")
         if not self.api_key:
             import warnings
+
             warnings.warn(
                 "MISTRAL_API_KEY is not set. API calls will fail.",
                 stacklevel=2,
@@ -72,6 +73,11 @@ class MistralClient:
         str
             The generated text returned by the model.
         """
+        if not self.api_key:
+            raise RuntimeError(
+                "Mistral API key is not configured. Set MISTRAL_API_KEY to enable API calls."
+            )
+
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
