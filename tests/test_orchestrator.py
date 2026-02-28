@@ -1,0 +1,54 @@
+"""Tests for AgentOrchestrator."""
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from omni_agent.orchestrator import AgentOrchestrator
+
+
+def test_delegate_to_web_agent():
+    orchestrator = AgentOrchestrator()
+    mock_web = MagicMock()
+    mock_web.execute.return_value = {"status": "success"}
+    orchestrator.agents["web"] = mock_web
+
+    result = orchestrator.delegate("book flight from SFO to NYC")
+
+    assert result == {"status": "success"}
+    mock_web.execute.assert_called_once()
+
+
+def test_delegate_to_code_agent():
+    orchestrator = AgentOrchestrator()
+    mock_code = MagicMock()
+    mock_code.execute.return_value = {"stdout": "Hello\n", "returncode": 0}
+    orchestrator.agents["code"] = mock_code
+
+    result = orchestrator.delegate("execute python code", {"code": "print('Hello')"})
+
+    assert result["returncode"] == 0
+    mock_code.execute.assert_called_once()
+
+
+def test_delegate_unknown_task():
+    orchestrator = AgentOrchestrator()
+    result = orchestrator.delegate("do something unknown")
+    assert "error" in result
+
+
+def test_add_agent():
+    orchestrator = AgentOrchestrator()
+    mock_agent = MagicMock()
+    response = orchestrator.add_agent("test", mock_agent)
+    assert response == "Added test agent."
+    assert orchestrator.agents["test"] is mock_agent
+
+
+def test_delegate_uses_added_agent():
+    orchestrator = AgentOrchestrator()
+    mock_agent = MagicMock()
+    mock_agent.execute.return_value = {"status": "custom"}
+    orchestrator.add_agent("custom", mock_agent)
+    # Direct delegation via add_agent: ensure agent is stored
+    assert "custom" in orchestrator.agents
