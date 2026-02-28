@@ -1,9 +1,14 @@
 """Mistral API client for code generation and improvement."""
 
 import os
+import time
 from typing import Optional
 
 import requests
+
+
+class MistralClientError(RuntimeError):
+    """Raised when the Mistral API returns an unexpected response."""
 
 
 class MistralClient:
@@ -26,10 +31,12 @@ class MistralClient:
                 stacklevel=2,
             )
         self.base_url = "https://api.mistral.ai/v1/"
-        self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+        self.headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            self.headers["Authorization"] = f"Bearer {self.api_key}"
+
+    def _raise_unexpected_shape(self, data: object) -> None:
+        raise MistralClientError(f"Unexpected Mistral response shape: {data!r}")
 
     def generate_code(
         self,
@@ -62,14 +69,66 @@ class MistralClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-        response = requests.post(
-            f"{self.base_url}chat/completions",
-            headers=self.headers,
-            json=payload,
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+
+        url = f"{self.base_url}chat/completions"
+        max_attempts = 3
+
+        for attempt in range(max_attempts):
+            try:
+                response = requests.post(
+                    url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=60,
+                )
+            except requests.exceptions.RequestException:
+                if attempt == max_attempts - 1:
+                    raise
+                time.sleep(0.5 * (2**attempt))
+                continue
+
+            status_code = getattr(response, "status_code", 0)
+            if not isinstance(status_code, int):
+                status_code = 0
+
+            if status_code == 429 or 500 <= status_code <= 599:
+                if attempt == max_attempts - 1:
+                    response.raise_for_status()
+                time.sleep(0.5 * (2**attempt))
+                continue
+
+            response.raise_for_status()
+
+            try:
+                data = response.json()
+            except ValueError as exc:  # pragma: no cover
+                body = getattr(response, "text", "")
+                raise MistralClientError(
+                    f"Failed to decode JSON from Mistral (status={status_code}): {body[:500]}"
+                ) from exc
+
+            if not isinstance(data, dict):
+                self._raise_unexpected_shape(data)
+
+            choices = data.get("choices")
+            if not isinstance(choices, list) or not choices:
+                self._raise_unexpected_shape(data)
+
+            choice0 = choices[0]
+            if not isinstance(choice0, dict):
+                self._raise_unexpected_shape(data)
+
+            message = choice0.get("message")
+            if not isinstance(message, dict):
+                self._raise_unexpected_shape(data)
+
+            content = message.get("content")
+            if not isinstance(content, str):
+                self._raise_unexpected_shape(data)
+
+            return content
+
+        raise AssertionError("unreachable")
 
     def improve_code(self, code: str, task: str) -> str:
         """Ask Mistral to improve *code* with respect to *task*.
