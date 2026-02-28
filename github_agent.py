@@ -1,5 +1,6 @@
 """GitHubAgent: main self-sustaining loop that orchestrates all phases."""
 
+import os
 import subprocess
 from time import sleep
 
@@ -49,6 +50,12 @@ class GitHubAgent:
         """Main loop: monitor issues, refactor, document, test, and release."""
         print("🤖 GitHubAgent activated. Entering self-sustaining loop...")
 
+        releases_enabled = os.getenv("OMNI_AGENT_ENABLE_RELEASES") == "1"
+        if not releases_enabled:
+            print(
+                "Releases are disabled. Set OMNI_AGENT_ENABLE_RELEASES=1 to enable release creation."
+            )
+
         cycles = 0
         backoff = self.error_backoff_seconds
 
@@ -65,9 +72,10 @@ class GitHubAgent:
                     self.doc_generator.generate()
 
                     print("🧪 Running tests...")
-                    subprocess.run(["pytest", "tests/"], check=False)
-
-                    if self._should_release():
+                    test_result = subprocess.run(["pytest", "tests/"], check=False)
+                    if test_result.returncode != 0:
+                        print("Tests failed; skipping release.")
+                    elif releases_enabled and self._should_release():
                         version = self.release_agent.next_version()
                         print(f"🎉 Creating release {version}...")
                         release_url = self.release_agent.create_release(version)
