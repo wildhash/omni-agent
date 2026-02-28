@@ -38,6 +38,12 @@ class DocGenerator:
                 "class": "CodeAgent",
                 "example": 'result = agent.execute("example task")',
             },
+            "voice_agent": {
+                "file": "omni_agent/agents/voice_agent.py",
+                "import": "omni_agent.agents.voice_agent",
+                "class": "VoiceAgent",
+                "example": 'result = agent.execute("speak", {"text": "hello"})',
+            },
         }
 
         for name, module in modules.items():

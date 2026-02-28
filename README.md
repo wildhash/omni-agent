@@ -13,9 +13,12 @@ omni_agent/
 ├── orchestrator.py       # Routes tasks to the right agent
 ├── agents/
 │   ├── web_agent.py      # Browser automation & web interactions
-│   └── code_agent.py     # Code execution, debugging & containerization
+│   ├── code_agent.py     # Code execution, debugging & containerization
+│   └── voice_agent.py    # Simulated voice I/O primitives (TTS/STT demo)
 ├── backend/
 │   └── main.py           # FastAPI REST API
+├── ui/
+│   └── gradio_app.py     # Gradio demo UI (optional)
 ├── github/
 │   ├── issue_agent.py    # Auto-responds to GitHub issues
 │   └── release_agent.py  # Automates versioned releases
@@ -114,6 +117,13 @@ curl -X POST http://localhost:8000/task \
 
 ```bash
 pytest tests/
+```
+
+## Gradio UI (optional)
+
+```bash
+pip install -r requirements-ui.txt
+python -m omni_agent.ui.gradio_app
 ```
 
 ## Contributing

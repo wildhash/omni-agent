@@ -9,11 +9,13 @@ class AgentOrchestrator:
     def __init__(self) -> None:
         from omni_agent.agents.web_agent import WebAgent
         from omni_agent.agents.code_agent import CodeAgent
+        from omni_agent.agents.voice_agent import VoiceAgent
         from omni_agent.self_heal import SelfHealer
 
         self.agents: Dict[str, Any] = {
             "web": WebAgent(),
             "code": CodeAgent(),
+            "voice": VoiceAgent(),
         }
         self.self_healer = SelfHealer(self)
 
@@ -38,6 +40,19 @@ class AgentOrchestrator:
         agent = None
         if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
             agent = self.agents.get("web")
+        elif any(
+            kw in task_lower
+            for kw in (
+                "voice",
+                "audio",
+                "speech",
+                "speak",
+                "transcribe",
+                "tts",
+                "stt",
+            )
+        ):
+            agent = self.agents.get("voice")
         elif any(
             kw in task_lower
             for kw in ("code", "run", "execute", "debug", "docker", "container")

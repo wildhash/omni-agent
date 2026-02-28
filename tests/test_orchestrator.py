@@ -31,6 +31,18 @@ def test_delegate_to_code_agent():
     mock_code.execute.assert_called_once()
 
 
+def test_delegate_to_voice_agent():
+    orchestrator = AgentOrchestrator()
+    mock_voice = MagicMock()
+    mock_voice.execute.return_value = {"status": "simulated"}
+    orchestrator.agents["voice"] = mock_voice
+
+    result = orchestrator.delegate("speak", {"text": "hello"})
+
+    assert result == {"status": "simulated"}
+    mock_voice.execute.assert_called_once()
+
+
 def test_delegate_unknown_task():
     orchestrator = AgentOrchestrator()
     result = orchestrator.delegate("do something unknown")
