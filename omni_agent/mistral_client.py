@@ -87,9 +87,7 @@ class MistralClient:
                 time.sleep(0.5 * (2**attempt))
                 continue
 
-            status_code = getattr(response, "status_code", 0)
-            if not isinstance(status_code, int):
-                status_code = 0
+            status_code = response.status_code
 
             if status_code == 429 or 500 <= status_code <= 599:
                 if attempt == max_attempts - 1:
