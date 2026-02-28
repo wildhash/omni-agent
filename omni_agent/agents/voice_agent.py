@@ -45,7 +45,7 @@ class VoiceAgent:
             kw in task_lower for kw in ("transcribe", "stt", "speech to text")
         ):
             return self._transcribe(
-                audio_b64=context.get("audio_base64"),
+                audio_base64=context.get("audio_base64"),
                 audio_path=context.get("audio_path"),
             )
 
@@ -79,7 +79,7 @@ class VoiceAgent:
     def _transcribe(
         self,
         *,
-        audio_b64: str | None,
+        audio_base64: str | None,
         audio_path: str | None,
     ) -> Dict[str, Any]:
         """Return a simulated transcription.
@@ -93,15 +93,15 @@ class VoiceAgent:
         """
         audio_bytes = b""
 
-        if audio_b64 and audio_path:
+        if audio_base64 and audio_path:
             return {
                 "error": "Provide only one of audio_base64 or audio_path, not both.",
                 "hint": "Provide exactly one audio input in context.",
             }
 
-        if audio_b64:
+        if audio_base64:
             try:
-                audio_bytes = base64.b64decode(audio_b64, validate=True)
+                audio_bytes = base64.b64decode(audio_base64, validate=True)
             except (binascii.Error, ValueError):
                 return {
                     "error": "Invalid audio_base64 payload.",

@@ -71,7 +71,10 @@ class AgentOrchestrator:
                     agent = self.agents.get("code")
 
         if agent is None:
-            return {"error": f"No agent available for task: '{task}'"}
+            result = {"error": f"No agent available for task: '{task}'"}
+            if orchestrator_warning:
+                result["orchestrator_warning"] = orchestrator_warning
+            return result
 
         try:
             result = agent.execute(task, context)
@@ -79,7 +82,10 @@ class AgentOrchestrator:
                 result = {**result, "orchestrator_warning": orchestrator_warning}
             return result
         except Exception as exc:
-            return self.self_healer.monitor(task, context, exc)
+            result = self.self_healer.monitor(task, context, exc)
+            if orchestrator_warning:
+                result = {**result, "orchestrator_warning": orchestrator_warning}
+            return result
 
     def add_agent(self, name: str, agent: Any) -> str:
         """Dynamically register a new agent."""
