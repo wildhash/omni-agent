@@ -84,6 +84,8 @@ Some capabilities are intentionally disabled by default because they can be dang
 
 - To enable `CodeAgent` Python execution: set `OMNI_AGENT_ENABLE_CODE_EXEC=1`
 - To enable `CodeAgent` Docker builds: set `OMNI_AGENT_ENABLE_DOCKER_BUILD=1`
+- To allow `SelfHealer` to write files: set `OMNI_AGENT_ENABLE_SELF_HEAL_APPLY=1`
+- To activate generated agents (import/execute from disk): set `OMNI_AGENT_ENABLE_GENERATED_AGENTS=1`
 - To run without API authentication (local dev only): set `OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1`
 
 **Dangerous environment flags:** the `OMNI_AGENT_*` flags above are for isolated local development only. Do not enable them in any exposed, shared, staging, or production environment, including Docker containers bound to `0.0.0.0` or otherwise reachable over a network.
