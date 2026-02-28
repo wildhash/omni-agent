@@ -1,6 +1,5 @@
 """Tests for SelfHealer."""
 
-import json
 from unittest.mock import MagicMock, patch
 
 from omni_agent.self_heal import SelfHealer
@@ -51,22 +50,14 @@ def test_monitor_fixable_new_agent():
 
 def test_diagnose_error_parses_json():
     healer = _make_healer()
-    diagnosis_obj = {
-        "error_type": "APIFailure",
-        "root_cause": "timeout",
-        "fixable": False,
-        "suggested_fix": {"type": "config_update", "details": "", "code_snippet": ""},
-    }
-    diagnosis_json = json.dumps(
-        {
-            **diagnosis_obj,
-        }
+    diagnosis_json = (
+        '{"error_type": "APIFailure", "root_cause": "timeout", "fixable": false, '
+        '"suggested_fix": {"type": "config_update", "details": "", "code_snippet": ""},}'
     )
-
     fenced = (
         "Here's the JSON:\n"
         "```json\n"
-        f"{diagnosis_json[:-1]},}}\n"
+        f"{diagnosis_json}\n"
         "```\n"
     )
 

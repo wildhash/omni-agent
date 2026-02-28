@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-import re
 import traceback
 from typing import Any, Dict
 
@@ -108,24 +107,92 @@ class SelfHealer:
 
     @staticmethod
     def _parse_model_json(text: str) -> Dict[str, Any]:
-        stripped = text.strip()
-        if stripped.startswith("```"):
+        def strip_code_fence(value: str) -> str:
+            stripped = value.strip()
+            if not stripped.startswith("```"):
+                return stripped
+
             lines = stripped.splitlines()
             if lines and lines[0].lstrip().startswith("```"):
                 lines = lines[1:]
             if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
-            stripped = "\n".join(lines).strip()
+            return "\n".join(lines).strip()
 
-        start = stripped.find("{")
-        end = stripped.rfind("}")
-        if start == -1 or end == -1 or end <= start:
-            raise ValueError("No JSON object found in model response")
+        def extract_first_object(value: str) -> str:
+            start = value.find("{")
+            if start == -1:
+                raise ValueError("No JSON object found in model response")
 
-        candidate = stripped[start : end + 1]
-        candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+            depth = 0
+            in_string = False
+            escape = False
+            for i in range(start, len(value)):
+                ch = value[i]
+                if in_string:
+                    if escape:
+                        escape = False
+                    elif ch == "\\":
+                        escape = True
+                    elif ch == '"':
+                        in_string = False
+                    continue
 
-        parsed = json.loads(candidate)
+                if ch == '"':
+                    in_string = True
+                elif ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        return value[start : i + 1]
+
+            raise ValueError("No complete JSON object found in model response")
+
+        def remove_trailing_commas(value: str) -> str:
+            out: list[str] = []
+            in_string = False
+            escape = False
+            i = 0
+            while i < len(value):
+                ch = value[i]
+                if in_string:
+                    out.append(ch)
+                    if escape:
+                        escape = False
+                    elif ch == "\\":
+                        escape = True
+                    elif ch == '"':
+                        in_string = False
+                    i += 1
+                    continue
+
+                if ch == '"':
+                    in_string = True
+                    out.append(ch)
+                    i += 1
+                    continue
+
+                if ch == ",":
+                    j = i + 1
+                    while j < len(value) and value[j].isspace():
+                        j += 1
+                    if j < len(value) and value[j] in ("}", "]"):
+                        i += 1
+                        continue
+
+                out.append(ch)
+                i += 1
+
+            return "".join(out)
+
+        stripped = strip_code_fence(text)
+        candidate = extract_first_object(stripped)
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            parsed = json.loads(remove_trailing_commas(candidate))
+
         if not isinstance(parsed, dict):
             raise TypeError("Expected a JSON object")
 
