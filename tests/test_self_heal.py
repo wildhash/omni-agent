@@ -123,7 +123,7 @@ def test_apply_fix_code_change_empty_details(monkeypatch):
     }
     result = healer._apply_fix(diagnosis)
     assert result["status"] == "failed"
-    assert "file_path" in result["error"].lower()
+    assert "file path" in result["error"].lower()
 
 
 def test_apply_fix_code_change_path_traversal(monkeypatch):
