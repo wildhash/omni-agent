@@ -9,11 +9,13 @@ class AgentOrchestrator:
     def __init__(self) -> None:
         from omni_agent.agents.web_agent import WebAgent
         from omni_agent.agents.code_agent import CodeAgent
+        from omni_agent.self_heal import SelfHealer
 
         self.agents: Dict[str, Any] = {
             "web": WebAgent(),
             "code": CodeAgent(),
         }
+        self.self_healer = SelfHealer(self)
 
     def delegate(self, task: str, context: Optional[Dict] = None) -> Dict:
         """Delegate *task* to the most appropriate agent.
@@ -33,12 +35,15 @@ class AgentOrchestrator:
         context = context or {}
         task_lower = task.lower()
 
-        if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
-            return self.agents["web"].execute(task, context)
-        elif any(kw in task_lower for kw in ("code", "run", "execute", "debug", "docker", "container")):
-            return self.agents["code"].execute(task, context)
-        else:
-            return {"error": f"No agent available for task: '{task}'"}
+        try:
+            if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
+                return self.agents["web"].execute(task, context)
+            elif any(kw in task_lower for kw in ("code", "run", "execute", "debug", "docker", "container")):
+                return self.agents["code"].execute(task, context)
+            else:
+                return {"error": f"No agent available for task: '{task}'"}
+        except Exception as exc:
+            return self.self_healer.monitor(task, context, exc)
 
     def add_agent(self, name: str, agent: Any) -> str:
         """Dynamically register a new agent.
