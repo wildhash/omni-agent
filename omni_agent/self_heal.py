@@ -31,23 +31,6 @@ class SelfHealer:
             self.project_root / "tests",
         )
 
-    def _parse_model_json(self, text: str) -> Dict:
-        text = text.strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            if lines and lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
-
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            text = text[start : end + 1]
-
-        return json.loads(text)
-
     def _resolve_write_path(self, relative_path: str) -> Path:
         candidate = Path(relative_path)
         if candidate.is_absolute():
