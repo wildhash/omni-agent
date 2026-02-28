@@ -102,7 +102,6 @@ def test_generate_code_retries_on_429(monkeypatch):
     assert mock_post.call_count == 2
     mock_sleep.assert_called_once()
 
-
 def test_generate_code_retries_on_5xx(monkeypatch):
     monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
     client = MistralClient()
