@@ -2,7 +2,11 @@
 
 import os
 import subprocess
+from pathlib import Path
 from typing import Any, Dict, Optional
+
+from omni_agent.agent_generator import AgentGenerator
+from omni_agent.mistral_client import MistralClient
 
 
 class CodeAgent:
@@ -16,12 +20,32 @@ class CodeAgent:
         Route code tasks to specific tools.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        mistral: Optional[MistralClient] = None,
+        agent_generator: Optional[AgentGenerator] = None,
+    ) -> None:
+        self._mistral = mistral
+        self._agent_generator = agent_generator
         self.tools: Dict[str, Any] = {
             "execute_python": self._execute_python,
             "debug": self._debug,
             "containerize": self._containerize,
+            "improve": self._improve_code,
+            "generate_agent": self._generate_agent,
         }
+
+    @property
+    def mistral(self) -> MistralClient:
+        if self._mistral is None:
+            self._mistral = MistralClient()
+        return self._mistral
+
+    @property
+    def agent_generator(self) -> AgentGenerator:
+        if self._agent_generator is None:
+            self._agent_generator = AgentGenerator(mistral=self.mistral)
+        return self._agent_generator
 
     def execute(self, task: str, context: Optional[Dict] = None) -> Dict:
         """Route *task* to the correct code tool.
@@ -40,6 +64,13 @@ class CodeAgent:
             return self._execute_python(context.get("code", ""))
         elif "debug" in task_lower:
             return self._debug(context.get("code", ""))
+        elif "improve" in task_lower:
+            return self._improve_code(context.get("code", ""), task)
+        elif "generate agent" in task_lower:
+            return self._generate_agent(
+                context.get("agent_type", ""),
+                requirements=context.get("requirements", ""),
+            )
         elif "docker" in task_lower or "container" in task_lower:
             return self._containerize(context)
         else:
@@ -78,26 +109,14 @@ class CodeAgent:
             return {"error": "Execution timed out."}
 
     def _debug(self, code: str) -> Dict:
-        """Provide static debugging hints for *code*.
-
-        Parameters
-        ----------
-        code:
-            Python source code to analyse.
-        """
+        """Provide static debugging hints for *code*."""
         return {
             "analysis": "Code looks syntactically correct. Add print statements for debugging.",
             "suggested_fixes": ["Add logging.", "Check variable types."],
         }
 
     def _containerize(self, context: Dict) -> Dict:
-        """Build a Docker image for the application described in *context*.
-
-        Parameters
-        ----------
-        context:
-            Dictionary with optional keys: 'path', 'dockerfile', 'tag'.
-        """
+        """Build a Docker image for the application described in *context*."""
         if os.getenv("OMNI_AGENT_ENABLE_DOCKER_BUILD") != "1":
             return {
                 "error": "Docker builds are disabled by default. Set OMNI_AGENT_ENABLE_DOCKER_BUILD=1 to enable.",
@@ -113,4 +132,32 @@ class CodeAgent:
             )
             return {"status": "success", "image_id": image.id}
         except Exception as exc:  # pragma: no cover
+            return {"error": str(exc)}
+
+    def _improve_code(self, code: str, task: str) -> Dict:
+        """Use Mistral to improve *code* with respect to *task*."""
+        try:
+            improved = self.mistral.improve_code(code, task)
+            return {
+                "original_code": code,
+                "improved_code": improved,
+                "status": "success",
+            }
+        except Exception as exc:
+            return {"error": str(exc)}
+
+    def _generate_agent(self, agent_type: str, requirements: str = "") -> Dict:
+        """Generate an agent file via :class:`~omni_agent.agent_generator.AgentGenerator`."""
+        try:
+            result = self.agent_generator.generate_agent(
+                agent_type,
+                requirements=requirements or "Generated via CodeAgent.",
+            )
+            if result.get("status") == "success":
+                try:
+                    result["code"] = Path(result["file"]).read_text(encoding="utf-8")
+                except OSError:
+                    pass
+            return result
+        except Exception as exc:
             return {"error": str(exc)}
