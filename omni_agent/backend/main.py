@@ -88,6 +88,8 @@ async def handle_task(
                 pass  # Memory logging is best-effort
 
         return result
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
