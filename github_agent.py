@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+import traceback
 from time import sleep
 
 from omni_agent.docs.generator import DocGenerator
@@ -42,9 +43,7 @@ class GitHubAgent:
         self.poll_interval_seconds = max(1, poll_interval_seconds)
         self.error_backoff_seconds = max(1, error_backoff_seconds)
         self.max_cycles = max_cycles
-        self.max_error_backoff_seconds = max(
-            self.error_backoff_seconds, max_error_backoff_seconds
-        )
+        self.max_error_backoff_seconds = max(1, max_error_backoff_seconds)
 
     def run(self) -> None:
         """Main loop: monitor issues, refactor, document, test, and release."""
@@ -57,7 +56,7 @@ class GitHubAgent:
             )
 
         cycles = 0
-        backoff = self.error_backoff_seconds
+        backoff = min(self.error_backoff_seconds, self.max_error_backoff_seconds)
 
         try:
             while self.max_cycles is None or cycles < self.max_cycles:
@@ -74,18 +73,23 @@ class GitHubAgent:
                     print("🧪 Running tests...")
                     test_result = subprocess.run(["pytest", "tests/"], check=False)
                     if test_result.returncode != 0:
-                        print("Tests failed; skipping release.")
+                        print(
+                            f"Tests failed (return code {test_result.returncode}); skipping release."
+                        )
                     elif releases_enabled and self._should_release():
                         version = self.release_agent.next_version()
                         print(f"🎉 Creating release {version}...")
                         release_url = self.release_agent.create_release(version)
                         print(f"Release created: {release_url}")
 
-                    backoff = self.error_backoff_seconds
+                    backoff = min(
+                        self.error_backoff_seconds, self.max_error_backoff_seconds
+                    )
                     sleep(self.poll_interval_seconds)
 
                 except Exception as exc:
                     print(f"⚠️ Error in main loop: {exc}")
+                    traceback.print_exc()
                     sleep(backoff)
                     backoff = min(backoff * 2, self.max_error_backoff_seconds)
 
