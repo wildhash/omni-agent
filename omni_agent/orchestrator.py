@@ -38,13 +38,11 @@ class AgentOrchestrator:
         task_lower = task.lower()
 
         agent_hint = str(context.get("agent", "")).strip().lower()
+        warning = None
         if agent_hint:
             agent = self.agents.get(agent_hint)
             if agent is None:
-                return {
-                    "error": f"Unknown agent hint: '{agent_hint}'",
-                    "available_agents": sorted(self.agents.keys()),
-                }
+                warning = f"Unknown agent hint '{agent_hint}' ignored."
         else:
             agent = None
 
@@ -76,7 +74,10 @@ class AgentOrchestrator:
             return {"error": f"No agent available for task: '{task}'"}
 
         try:
-            return agent.execute(task, context)
+            result = agent.execute(task, context)
+            if warning:
+                result = {**result, "warning": warning}
+            return result
         except Exception as exc:
             return self.self_healer.monitor(task, context, exc)
 

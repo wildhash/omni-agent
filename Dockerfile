@@ -9,6 +9,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY omni_agent ./omni_agent
+COPY github_agent.py ./
 
 EXPOSE 8000
 

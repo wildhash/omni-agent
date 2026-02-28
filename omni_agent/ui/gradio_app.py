@@ -33,7 +33,7 @@ def _load_gradio():
         return gr
     except ImportError as exc:
         raise GradioNotInstalledError(
-            "Gradio is not installed. Run: pip install -r requirements-ui.txt"
+            "Gradio UI is optional and not installed. Run: pip install -r requirements-ui.txt"
         ) from exc
 
 
@@ -99,6 +99,7 @@ def build_app() -> Any:
                     "No audio filepath received from UI. "
                     "Please record or upload a single audio file before transcribing."
                 ),
+                "received_type": str(type(audio_path)),
             }
         result = orchestrator.delegate("transcribe", {"audio_path": audio_path})
         return result.get("text", ""), result
