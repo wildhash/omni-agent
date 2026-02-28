@@ -50,39 +50,38 @@ class GitHubAgent:
         cycles = 0
         backoff = self.error_backoff_seconds
 
-        while self.max_cycles is None or cycles < self.max_cycles:
-            try:
-                print("🔍 Checking for new issues...")
-                self.issue_agent.monitor_issues()
+        try:
+            while self.max_cycles is None or cycles < self.max_cycles:
+                try:
+                    print("🔍 Checking for new issues...")
+                    self.issue_agent.monitor_issues()
 
-                print("🔄 Auto-refactoring...")
-                self._auto_refactor()
+                    print("🔄 Auto-refactoring...")
+                    self._auto_refactor()
 
-                print("📚 Generating documentation...")
-                self.doc_generator.generate()
+                    print("📚 Generating documentation...")
+                    self.doc_generator.generate()
 
-                print("🧪 Running tests...")
-                subprocess.run(["pytest", "tests/"], check=False)
+                    print("🧪 Running tests...")
+                    subprocess.run(["pytest", "tests/"], check=False)
 
-                if self._should_release():
-                    version = self.release_agent.next_version()
-                    print(f"🎉 Creating release {version}...")
-                    release_url = self.release_agent.create_release(version)
-                    print(f"Release created: {release_url}")
+                    if self._should_release():
+                        version = self.release_agent.next_version()
+                        print(f"🎉 Creating release {version}...")
+                        release_url = self.release_agent.create_release(version)
+                        print(f"Release created: {release_url}")
 
-                backoff = self.error_backoff_seconds
-                sleep(self.poll_interval_seconds)
+                    backoff = self.error_backoff_seconds
+                    sleep(self.poll_interval_seconds)
 
-            except KeyboardInterrupt:
-                return
+                except Exception as exc:
+                    print(f"⚠️ Error in main loop: {exc}")
+                    sleep(backoff)
+                    backoff = min(backoff * 2, self.max_error_backoff_seconds)
 
-            except Exception as exc:
-                print(f"⚠️ Error in main loop: {exc}")
-                sleep(backoff)
-                backoff = min(backoff * 2, self.max_error_backoff_seconds)
-
-            finally:
                 cycles += 1
+        except KeyboardInterrupt:
+            return
 
     def _auto_refactor(self) -> None:
         """Placeholder for LLM-based code refactoring logic."""
