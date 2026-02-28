@@ -38,6 +38,15 @@ class MistralClient:
     def _raise_unexpected_shape(self, data: object) -> NoReturn:
         raise MistralClientError(f"Unexpected Mistral response shape: {data!r}")
 
+    def _raise_http_error(self, response: requests.Response, exc: requests.HTTPError) -> None:
+        status_code = getattr(response, "status_code", "unknown")
+        body_preview = str(getattr(response, "text", ""))[:500]
+        raise requests.HTTPError(
+            f"Mistral API request failed (status={status_code}): {body_preview}",
+            response=response,
+            request=getattr(response, "request", None),
+        ) from exc
+
     def generate_code(
         self,
         prompt: str,
@@ -91,11 +100,17 @@ class MistralClient:
 
             if status_code == 429 or 500 <= status_code <= 599:
                 if attempt == max_attempts - 1:
-                    response.raise_for_status()
+                    try:
+                        response.raise_for_status()
+                    except requests.HTTPError as exc:
+                        self._raise_http_error(response, exc)
                 time.sleep(0.5 * (2**attempt))
                 continue
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except requests.HTTPError as exc:
+                self._raise_http_error(response, exc)
 
             try:
                 data = response.json()

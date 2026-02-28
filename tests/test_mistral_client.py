@@ -101,3 +101,25 @@ def test_generate_code_retries_on_429(monkeypatch):
     assert result == "ok"
     assert mock_post.call_count == 2
     mock_sleep.assert_called_once()
+
+
+def test_generate_code_retries_on_5xx(monkeypatch):
+    monkeypatch.setenv("MISTRAL_API_KEY", "test-key")
+    client = MistralClient()
+
+    server_error = MagicMock()
+    server_error.status_code = 500
+    server_error.raise_for_status.side_effect = Exception("server error")
+
+    ok = MagicMock()
+    ok.status_code = 200
+    ok.json.return_value = {"choices": [{"message": {"content": "ok"}}]}
+    ok.raise_for_status = MagicMock()
+
+    with patch("requests.post", side_effect=[server_error, ok]) as mock_post:
+        with patch("time.sleep") as mock_sleep:
+            result = client.generate_code("write something")
+
+    assert result == "ok"
+    assert mock_post.call_count == 2
+    mock_sleep.assert_called_once()
