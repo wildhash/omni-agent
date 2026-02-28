@@ -51,15 +51,26 @@ def test_monitor_fixable_new_agent():
 
 def test_diagnose_error_parses_json():
     healer = _make_healer()
+    diagnosis_obj = {
+        "error_type": "APIFailure",
+        "root_cause": "timeout",
+        "fixable": False,
+        "suggested_fix": {"type": "config_update", "details": "", "code_snippet": ""},
+    }
     diagnosis_json = json.dumps(
         {
-            "error_type": "APIFailure",
-            "root_cause": "timeout",
-            "fixable": False,
-            "suggested_fix": {"type": "config_update", "details": "", "code_snippet": ""},
+            **diagnosis_obj,
         }
     )
-    with patch.object(healer.mistral, "generate_code", return_value=diagnosis_json):
+
+    fenced = (
+        "Here's the JSON:\n"
+        "```json\n"
+        f"{diagnosis_json[:-1]},}}\n"
+        "```\n"
+    )
+
+    with patch.object(healer.mistral, "generate_code", return_value=fenced):
         result = healer._diagnose_error("task", {}, "Traceback...")
 
     assert result["error_type"] == "APIFailure"

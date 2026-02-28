@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import traceback
 from typing import Any, Dict
 
@@ -96,7 +97,7 @@ class SelfHealer:
         )
         try:
             response = self.mistral.generate_code(prompt)
-            return json.loads(response)
+            return self._parse_model_json(response)
         except Exception as exc:
             self.logger.error("Diagnosis failed: %s", exc)
             return {
@@ -104,6 +105,31 @@ class SelfHealer:
                 "root_cause": str(exc),
                 "fixable": False,
             }
+
+    @staticmethod
+    def _parse_model_json(text: str) -> Dict[str, Any]:
+        stripped = text.strip()
+        if stripped.startswith("```"):
+            lines = stripped.splitlines()
+            if lines and lines[0].lstrip().startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            stripped = "\n".join(lines).strip()
+
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise ValueError("No JSON object found in model response")
+
+        candidate = stripped[start : end + 1]
+        candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+
+        parsed = json.loads(candidate)
+        if not isinstance(parsed, dict):
+            raise TypeError("Expected a JSON object")
+
+        return parsed
 
     def _apply_fix(self, diagnosis: Dict) -> Dict:
         """Apply the fix recommended in *diagnosis*.
