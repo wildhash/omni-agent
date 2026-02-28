@@ -38,10 +38,12 @@ class GitHubAgent:
         self.issue_agent = IssueAgent(repo_name)
         self.release_agent = ReleaseAgent(repo_name)
         self.doc_generator = DocGenerator()
-        self.poll_interval_seconds = poll_interval_seconds
-        self.error_backoff_seconds = error_backoff_seconds
+        self.poll_interval_seconds = max(1, poll_interval_seconds)
+        self.error_backoff_seconds = max(1, error_backoff_seconds)
         self.max_cycles = max_cycles
-        self.max_error_backoff_seconds = max_error_backoff_seconds
+        self.max_error_backoff_seconds = max(
+            self.error_backoff_seconds, max_error_backoff_seconds
+        )
 
     def run(self) -> None:
         """Main loop: monitor issues, refactor, document, test, and release."""
