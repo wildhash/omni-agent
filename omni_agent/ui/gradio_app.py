@@ -14,9 +14,15 @@ from __future__ import annotations
 import base64
 import json
 import tempfile
+from collections import deque
+from pathlib import Path
 from typing import Any, Dict, Tuple
 
 from omni_agent.orchestrator import AgentOrchestrator
+
+
+class GradioNotInstalledError(RuntimeError):
+    pass
 
 
 def _load_gradio():
@@ -25,7 +31,7 @@ def _load_gradio():
 
         return gr
     except ImportError as exc:
-        raise SystemExit(
+        raise GradioNotInstalledError(
             "Gradio is not installed. Run: pip install -r requirements-ui.txt"
         ) from exc
 
@@ -43,9 +49,8 @@ def _parse_context(raw: str) -> Tuple[Dict[str, Any], str | None]:
 def build_app() -> Any:
     gr = _load_gradio()
     orchestrator = AgentOrchestrator()
-    tts_tmp = tempfile.NamedTemporaryFile(prefix="omni-agent-tts-", suffix=".wav", delete=False)
-    tts_path = tts_tmp.name
-    tts_tmp.close()
+    tts_files: deque[str] = deque()
+    max_tts_files = 32
 
     def run_task(task: str, context_json: str) -> Dict[str, Any]:
         ctx, err = _parse_context(context_json)
@@ -59,14 +64,25 @@ def build_app() -> Any:
             return None, result
 
         data = base64.b64decode(result["audio_base64"])
-        with open(tts_path, "wb") as fh:
+        with tempfile.NamedTemporaryFile(prefix="omni-agent-tts-", suffix=".wav", delete=False) as fh:
             fh.write(data)
+            wav_path = fh.name
 
-        return tts_path, result
+        tts_files.append(wav_path)
+        while len(tts_files) > max_tts_files:
+            old_path = tts_files.popleft()
+            try:
+                Path(old_path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
-    def stt(audio_path: str):
-        if not audio_path:
-            return "", {"error": "Please record or upload audio before transcribing."}
+        return wav_path, result
+
+    def stt(audio_path: Any):
+        if not audio_path or not isinstance(audio_path, str):
+            return "", {
+                "error": "Please record or upload a single audio file before transcribing.",
+            }
         result = orchestrator.delegate("transcribe", {"audio_path": audio_path})
         return result.get("text", ""), result
 
@@ -112,7 +128,11 @@ def build_app() -> Any:
 
 
 def main() -> None:
-    app = build_app()
+    try:
+        app = build_app()
+    except GradioNotInstalledError as exc:
+        raise SystemExit(str(exc)) from exc
+
     app.launch()
 
 

@@ -37,25 +37,32 @@ class AgentOrchestrator:
         context = context or {}
         task_lower = task.lower()
 
-        agent = None
-        if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
-            agent = self.agents.get("web")
-        elif any(
-            kw in task_lower
-            for kw in (
-                "voice",
-                "speak",
-                "transcribe",
-                "tts",
-                "stt",
-            )
-        ):
-            agent = self.agents.get("voice")
-        elif any(
-            kw in task_lower
-            for kw in ("code", "run", "execute", "debug", "docker", "container")
-        ):
-            agent = self.agents.get("code")
+        agent_hint = str(context.get("agent", "")).strip().lower()
+        agent = self.agents.get(agent_hint) if agent_hint else None
+
+        if agent is None:
+            if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
+                agent = self.agents.get("web")
+            else:
+                voice_keywords = (
+                    "speak",
+                    "transcribe",
+                    "tts",
+                    "stt",
+                    "text to speech",
+                    "speech to text",
+                )
+                is_voice_task = any(kw in task_lower for kw in voice_keywords) or (
+                    "voice" in task_lower and "code" not in task_lower
+                )
+
+                if is_voice_task:
+                    agent = self.agents.get("voice")
+                elif any(
+                    kw in task_lower
+                    for kw in ("code", "run", "execute", "debug", "docker", "container")
+                ):
+                    agent = self.agents.get("code")
 
         if agent is None:
             return {"error": f"No agent available for task: '{task}'"}

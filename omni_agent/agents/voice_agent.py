@@ -49,7 +49,7 @@ class VoiceAgent:
                 audio_path=context.get("audio_path"),
             )
 
-        return {"error": f"Voice task not recognised: '{task}'"}
+        return {"error": f"Voice task not recognized: '{task}'"}
 
     def _speak(self, text: str) -> Dict[str, Any]:
         """Return a tiny WAV tone payload as base64.
