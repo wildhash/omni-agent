@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from omni_agent.agent_generator import AgentGenerator
@@ -168,12 +169,19 @@ class CodeAgent:
         Parameters
         ----------
         agent_type:
-            CamelCase name for the new agent (e.g. ``"VoiceAgent"``).
+            CamelCase base name for the new agent (e.g. ``"Voice"``). Passing
+            ``"VoiceAgent"`` is also accepted and normalized.
         """
         try:
-            return self.agent_generator.generate_agent(
+            result = self.agent_generator.generate_agent(
                 agent_type,
                 requirements="Generated via CodeAgent.",
             )
+            if result.get("status") == "success":
+                try:
+                    result["code"] = Path(result["file"]).read_text(encoding="utf-8")
+                except OSError:
+                    pass
+            return result
         except Exception as exc:
             return {"error": str(exc)}

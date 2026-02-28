@@ -69,13 +69,40 @@ class AgentGenerator:
         ):
             body = body[1:]
 
-        if len(body) != 1 or not isinstance(body[0], ast.ClassDef):
+        allowed_import_modules = {"logging", "typing"}
+
+        class_nodes = [node for node in body if isinstance(node, ast.ClassDef)]
+        if len(class_nodes) != 1:
+            raise ValueError("Generated agent must contain a single agent class.")
+
+        agent_class_node = class_nodes[0]
+        if agent_class_node.name != expected_class_name:
+            raise ValueError(f"Generated agent class name must be '{expected_class_name}'.")
+
+        for node in body:
+            if node is agent_class_node:
+                continue
+
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name not in allowed_import_modules:
+                        raise ValueError(
+                            f"Top-level import '{alias.name}' is not allowed in generated agents."
+                        )
+                continue
+
+            if isinstance(node, ast.ImportFrom):
+                if node.level != 0 or not node.module:
+                    raise ValueError("Relative imports are not allowed in generated agents.")
+                if node.module not in allowed_import_modules:
+                    raise ValueError(
+                        f"Top-level import '{node.module}' is not allowed in generated agents."
+                    )
+                continue
+
             raise ValueError(
-                "Generated agent must contain exactly one top-level class definition."
-            )
-        if body[0].name != expected_class_name:
-            raise ValueError(
-                f"Generated agent class name must be '{expected_class_name}'."
+                "Generated agent must only contain a class definition and safe imports "
+                f"(found top-level {type(node).__name__})."
             )
 
     def _agent_file_path(self, agent_type: str) -> Path:
@@ -87,7 +114,8 @@ class AgentGenerator:
         Parameters
         ----------
         agent_type:
-            CamelCase name for the new agent (e.g. ``"VoiceAgent"``).
+            CamelCase base name for the new agent (e.g. ``"Voice"``). Passing
+            ``"VoiceAgent"`` is also accepted and normalized.
         requirements:
             Free-form description of what the agent must do.
 
@@ -109,7 +137,8 @@ class AgentGenerator:
                 "- The class MUST include `execute(task: str, context: dict) -> dict`\n"
                 "- Include error handling and logging\n"
                 "- Use type hints and docstrings\n"
-                "- Do not include any other top-level code (no imports, no helper functions)\n\n"
+                "- Top-level imports are allowed only from: logging, typing\n"
+                "- Do not include any other top-level code\n\n"
                 "Return ONLY the Python source code."
             )
 
@@ -121,7 +150,7 @@ class AgentGenerator:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(agent_code, encoding="utf-8")
 
-            module_name = f"omni_agent_generated_{normalized_type.lower()}_agent"
+            module_name = f"omni_agent.agents.{normalized_type.lower()}_agent"
             return {
                 "status": "success",
                 "agent_type": normalized_type,
@@ -141,6 +170,7 @@ class AgentGenerator:
         if os.getenv("OMNI_AGENT_ENABLE_GENERATED_AGENTS") != "1":
             return {
                 "status": "pending_approval",
+                "reason": "approval_required",
                 "message": "Set OMNI_AGENT_ENABLE_GENERATED_AGENTS=1 to activate generated agents.",
             }
 
@@ -157,7 +187,7 @@ class AgentGenerator:
             source = file_path.read_text(encoding="utf-8")
             self._validate_generated_module(source, class_name)
 
-            module_name = f"omni_agent_generated_{normalized_type.lower()}_agent"
+            module_name = f"omni_agent.agents.{normalized_type.lower()}_agent"
             spec = importlib.util.spec_from_file_location(module_name, str(file_path))
             if spec is None or spec.loader is None:
                 return {"status": "error", "message": "Failed to load module spec."}
@@ -190,7 +220,8 @@ class AgentGenerator:
         orchestrator:
             An :class:`~omni_agent.orchestrator.AgentOrchestrator` instance.
         agent_type:
-            CamelCase name for the new agent (e.g. ``"VoiceAgent"``).
+            CamelCase base name for the new agent (e.g. ``"Voice"``). Passing
+            ``"VoiceAgent"`` is also accepted and normalized.
 
         Returns
         -------
