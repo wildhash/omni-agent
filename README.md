@@ -57,6 +57,8 @@ Some capabilities are intentionally disabled by default because they can be dang
 - To enable `CodeAgent` Python execution: set `OMNI_AGENT_ENABLE_CODE_EXEC=1`
 - To enable `CodeAgent` Docker builds: set `OMNI_AGENT_ENABLE_DOCKER_BUILD=1`
 
+Only enable these in trusted environments (e.g. local development). Exposing them in a deployed API can lead to remote code execution.
+
 ## API
 
 | Method | Endpoint  | Description                    |
