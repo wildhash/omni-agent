@@ -2,7 +2,7 @@
 
 import os
 import time
-from typing import Optional
+from typing import NoReturn, Optional
 
 import requests
 
@@ -35,7 +35,7 @@ class MistralClient:
         if self.api_key:
             self.headers["Authorization"] = f"Bearer {self.api_key}"
 
-    def _raise_unexpected_shape(self, data: object) -> None:
+    def _raise_unexpected_shape(self, data: object) -> NoReturn:
         raise MistralClientError(f"Unexpected Mistral response shape: {data!r}")
 
     def generate_code(
@@ -126,7 +126,7 @@ class MistralClient:
 
             return content
 
-        raise AssertionError("unreachable")
+        raise MistralClientError("Exhausted retry attempts.")
 
     def improve_code(self, code: str, task: str) -> str:
         """Ask Mistral to improve *code* with respect to *task*.
