@@ -39,7 +39,7 @@ github_agent.py           # Main self-sustaining loop
 pip install -r requirements.txt
 ```
 
-Create a local `.env` file (see `.env.example`) to configure `GITHUB_TOKEN`, `WEAVIATE_URL`, and API auth.
+Create a local `.env` file (see `.env.example`) to configure `GITHUB_TOKEN`, `WEAVIATE_URL`, and API auth. Some flags are intentionally dangerous (for example `OMNI_AGENT_ALLOW_INSECURE_NOAUTH`, `OMNI_AGENT_ENABLE_CODE_EXEC`, and `OMNI_AGENT_ENABLE_DOCKER_BUILD`) and should stay disabled outside isolated local development.
 
 ### Running with Docker Compose
 
