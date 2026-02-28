@@ -4,6 +4,7 @@ import os
 import subprocess
 from typing import Any, Dict, Optional
 
+from omni_agent.agent_generator import AgentGenerator
 from omni_agent.mistral_client import MistralClient
 
 
@@ -18,8 +19,13 @@ class CodeAgent:
         Route code tasks to specific tools.
     """
 
-    def __init__(self) -> None:
-        self.mistral = MistralClient()
+    def __init__(
+        self,
+        mistral: Optional[MistralClient] = None,
+        agent_generator: Optional[AgentGenerator] = None,
+    ) -> None:
+        self._mistral = mistral
+        self._agent_generator = agent_generator
         self.tools: Dict[str, Any] = {
             "execute_python": self._execute_python,
             "debug": self._debug,
@@ -27,6 +33,18 @@ class CodeAgent:
             "improve": self._improve_code,
             "generate_agent": self._generate_agent,
         }
+
+    @property
+    def mistral(self) -> MistralClient:
+        if self._mistral is None:
+            self._mistral = MistralClient()
+        return self._mistral
+
+    @property
+    def agent_generator(self) -> AgentGenerator:
+        if self._agent_generator is None:
+            self._agent_generator = AgentGenerator(mistral=self.mistral)
+        return self._agent_generator
 
     def execute(self, task: str, context: Optional[Dict] = None) -> Dict:
         """Route *task* to the correct code tool.
@@ -153,29 +171,9 @@ class CodeAgent:
             CamelCase name for the new agent (e.g. ``"VoiceAgent"``).
         """
         try:
-            prompt = (
-                f"Write a Python class for a {agent_type} that integrates with Omni-Agent.\n"
-                "The class should:\n"
-                "1. Inherit from a base Agent class (if applicable).\n"
-                "2. Include a constructor and an `execute(task: str, context: dict)` method.\n"
-                "3. Use modern Python practices (type hints, docstrings).\n"
-                "4. Handle errors gracefully.\n"
-                "Return ONLY the class definition, no explanations."
+            return self.agent_generator.generate_agent(
+                agent_type,
+                requirements="Generated via CodeAgent.",
             )
-            agent_code = self.mistral.generate_code(prompt)
-
-            filename = os.path.join(
-                "omni_agent", "agents", f"{agent_type.lower()}_agent.py"
-            )
-            os.makedirs(os.path.dirname(filename), exist_ok=True)
-            with open(filename, "w") as f:
-                f.write(agent_code)
-
-            return {
-                "status": "success",
-                "agent_type": agent_type,
-                "file": filename,
-                "code": agent_code,
-            }
         except Exception as exc:
             return {"error": str(exc)}

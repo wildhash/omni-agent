@@ -35,13 +35,20 @@ class AgentOrchestrator:
         context = context or {}
         task_lower = task.lower()
 
+        agent = None
+        if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
+            agent = self.agents.get("web")
+        elif any(
+            kw in task_lower
+            for kw in ("code", "run", "execute", "debug", "docker", "container")
+        ):
+            agent = self.agents.get("code")
+
+        if agent is None:
+            return {"error": f"No agent available for task: '{task}'"}
+
         try:
-            if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
-                return self.agents["web"].execute(task, context)
-            elif any(kw in task_lower for kw in ("code", "run", "execute", "debug", "docker", "container")):
-                return self.agents["code"].execute(task, context)
-            else:
-                return {"error": f"No agent available for task: '{task}'"}
+            return agent.execute(task, context)
         except Exception as exc:
             return self.self_healer.monitor(task, context, exc)
 

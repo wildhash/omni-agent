@@ -131,4 +131,4 @@ def test_apply_fix_code_change_path_traversal():
     }
     result = healer._apply_fix(diagnosis)
     assert result["status"] == "failed"
-    assert "Unsafe" in result["error"]
+    assert "relative" in result["error"].lower() or "unsafe" in result["error"].lower()

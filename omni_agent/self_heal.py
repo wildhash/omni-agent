@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import traceback
+from pathlib import Path
 from typing import Any, Dict
 
 from omni_agent.agent_generator import AgentGenerator
@@ -24,6 +25,40 @@ class SelfHealer:
         self.mistral = MistralClient()
         self.agent_generator = AgentGenerator()
         self.logger = logging.getLogger("SelfHealer")
+        self.project_root = Path(__file__).resolve().parents[1]
+        self.allowed_write_roots = (
+            self.project_root / "omni_agent",
+            self.project_root / "tests",
+        )
+
+    def _parse_model_json(self, text: str) -> Dict:
+        text = text.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            text = text[start : end + 1]
+
+        return json.loads(text)
+
+    def _resolve_write_path(self, relative_path: str) -> Path:
+        candidate = Path(relative_path)
+        if candidate.is_absolute():
+            raise ValueError("file_path must be relative")
+
+        resolved = (self.project_root / candidate).resolve()
+        for allowed in self.allowed_write_roots:
+            allowed_resolved = allowed.resolve()
+            if resolved == allowed_resolved or allowed_resolved in resolved.parents:
+                return resolved
+        raise ValueError(f"Unsafe file path rejected: {relative_path}")
 
     def monitor(self, task: str, context: dict, error: Exception) -> Dict:
         """Analyse *error* that occurred during *task* and attempt self-healing.
@@ -90,6 +125,8 @@ class SelfHealer:
             '    "suggested_fix": {\n'
             '        "type": "string",\n'
             '        "details": "string",\n'
+            '        "agent_type": "string",\n'
+            '        "file_path": "string",\n'
             '        "code_snippet": "string"\n'
             "    }\n"
             "}"
@@ -175,35 +212,68 @@ class SelfHealer:
         fix_type = fix.get("type", "")
 
         if fix_type == "new_agent":
-            details = fix.get("details", "")
-            parts = details.split()
-            if not parts:
-                return {"status": "failed", "error": "No agent type specified in fix details."}
-            agent_type = parts[-1]
+            agent_type = fix.get("agent_type")
+            if not agent_type:
+                details = fix.get("details", "")
+                parts = details.split()
+                agent_type = parts[-1] if parts else ""
+
+            if not agent_type:
+                return {
+                    "status": "failed",
+                    "error": "No agent type specified in suggested_fix.",
+                }
+
             result = self.agent_generator.register_agent(
-                self.orchestrator, agent_type
+                self.orchestrator,
+                agent_type,
+                requirements=fix.get("details", ""),
             )
+
+            status = "fixed" if result.get("status") == "success" else "proposed"
             return {
-                "status": "fixed",
+                "status": status,
                 "action": "generated_new_agent",
                 "agent": agent_type,
                 "result": result,
             }
 
         if fix_type == "code_change":
-            details = fix.get("details", "")
-            parts = details.split()
-            if not parts:
-                return {"status": "failed", "error": "No file path specified in fix details."}
-            file_path = os.path.realpath(parts[0])
-            project_root = os.path.realpath(os.getcwd())
-            if not file_path.startswith(project_root + os.sep):
-                return {"status": "failed", "error": f"Unsafe file path rejected: {parts[0]}"}
+            file_path = fix.get("file_path")
+            if not file_path:
+                details = fix.get("details", "")
+                parts = details.split()
+                file_path = parts[0] if parts else ""
+
+            if not file_path:
+                return {
+                    "status": "failed",
+                    "error": "No file path specified in suggested_fix.",
+                }
+
             new_code = fix.get("code_snippet", "")
             try:
-                with open(file_path, "w") as f:
-                    f.write(new_code)
-                return {"status": "fixed", "action": "updated_code", "file": file_path}
+                resolved = self._resolve_write_path(file_path)
+            except Exception as exc:
+                return {"status": "failed", "error": str(exc)}
+
+            if os.getenv("OMNI_AGENT_ENABLE_SELF_HEAL_APPLY") != "1":
+                return {
+                    "status": "proposed",
+                    "action": "update_code",
+                    "file": str(resolved),
+                    "message": "Set OMNI_AGENT_ENABLE_SELF_HEAL_APPLY=1 to allow SelfHealer to write files.",
+                    "code": new_code,
+                }
+
+            try:
+                resolved.parent.mkdir(parents=True, exist_ok=True)
+                resolved.write_text(new_code, encoding="utf-8")
+                return {
+                    "status": "fixed",
+                    "action": "updated_code",
+                    "file": str(resolved),
+                }
             except Exception as exc:
                 return {"status": "failed", "error": str(exc)}
 
