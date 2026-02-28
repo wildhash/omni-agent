@@ -38,11 +38,11 @@ class AgentOrchestrator:
         task_lower = task.lower()
 
         agent_hint = str(context.get("agent", "")).strip().lower()
-        warning = None
+        orchestrator_warning = None
         if agent_hint:
             agent = self.agents.get(agent_hint)
             if agent is None:
-                warning = f"Unknown agent hint '{agent_hint}' ignored."
+                orchestrator_warning = f"Unknown agent hint '{agent_hint}' ignored."
         else:
             agent = None
 
@@ -75,8 +75,8 @@ class AgentOrchestrator:
 
         try:
             result = agent.execute(task, context)
-            if warning:
-                result = {**result, "warning": warning}
+            if orchestrator_warning:
+                result = {**result, "orchestrator_warning": orchestrator_warning}
             return result
         except Exception as exc:
             return self.self_healer.monitor(task, context, exc)

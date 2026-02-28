@@ -97,7 +97,7 @@ def build_app() -> Any:
             return "", {
                 "error": (
                     "No audio filepath received from UI. "
-                    "Please record or upload a single audio file before transcribing."
+                    "Ensure the Audio input uses type='filepath' and record or upload a single audio file."
                 ),
                 "received_type": str(type(audio_path)),
             }

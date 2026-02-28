@@ -102,9 +102,9 @@ class VoiceAgent:
         if audio_b64:
             try:
                 audio_bytes = base64.b64decode(audio_b64, validate=True)
-            except (binascii.Error, ValueError) as exc:
+            except (binascii.Error, ValueError):
                 return {
-                    "error": f"Invalid audio_base64: {exc}",
+                    "error": "Invalid audio_base64 payload.",
                     "hint": "Provide base64-encoded audio bytes.",
                 }
         elif audio_path:

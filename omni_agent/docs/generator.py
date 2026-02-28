@@ -42,7 +42,7 @@ class DocGenerator:
                 "file": "omni_agent/agents/voice_agent.py",
                 "import": "omni_agent.agents.voice_agent",
                 "class": "VoiceAgent",
-                "example": 'result = agent.execute("speak", {"text": "hello"})',
+                "example": 'result = agent.execute("say hello", {"action": "speak", "text": "hello"})',
             },
         }
 
