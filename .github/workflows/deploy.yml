@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: deploy-${{ github.workflow }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -47,8 +47,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build image
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           # Use strict shell options for safer CI scripts; normalize the image name to lowercase.
@@ -57,8 +55,6 @@ jobs:
           docker build -t "$GHCR_IMAGE:latest" -t "$GHCR_IMAGE:${{ github.sha }}" .
 
       - name: Push to GHCR
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           # Use strict shell options for safer CI scripts; normalize the image name to lowercase.
