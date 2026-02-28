@@ -33,7 +33,8 @@ class ReleaseAgent:
         str
             URL of the newly created release.
         """
-        main_sha = self.repo.get_branch("main").commit.sha
+        default_branch = self.repo.default_branch
+        main_sha = self.repo.get_branch(default_branch).commit.sha
 
         tags = list(self.repo.get_tags())
         last_tag = tags[0].name if tags else None

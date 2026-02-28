@@ -102,12 +102,10 @@ class GitHubAgent:
             tags = list(self.release_agent.repo.get_tags())
             if not tags:
                 return False
-            result = subprocess.run(
-                ["git", "rev-list", "--count", f"{tags[0].name}..HEAD"],
-                capture_output=True,
-                text=True,
-            )
-            return int(result.stdout.strip()) > 10
+
+            default_branch = self.release_agent.repo.default_branch
+            comparison = self.release_agent.repo.compare(tags[0].name, default_branch)
+            return comparison.total_commits > 10
         except Exception:
             return False
 

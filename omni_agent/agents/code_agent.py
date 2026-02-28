@@ -48,6 +48,9 @@ class CodeAgent:
     def _execute_python(self, code: str) -> Dict:
         """Execute *code* in a subprocess with a 10-second timeout.
 
+        This is **not** a secure sandbox. Only enable code execution in trusted
+        environments.
+
         Parameters
         ----------
         code:

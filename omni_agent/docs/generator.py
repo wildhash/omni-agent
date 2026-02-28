@@ -1,5 +1,6 @@
 """DocGenerator: auto-generates Markdown documentation from agent source files."""
 
+import ast
 import os
 from typing import Dict, List
 
@@ -18,31 +19,40 @@ class DocGenerator:
 
     def generate(self) -> None:
         """Auto-generate Markdown docs for all agents and update the index."""
-        agents: Dict[str, str] = {
-            "orchestrator": "omni_agent/orchestrator.py",
-            "web_agent": "omni_agent/agents/web_agent.py",
-            "code_agent": "omni_agent/agents/code_agent.py",
+        modules: Dict[str, Dict[str, str]] = {
+            "orchestrator": {
+                "file": "omni_agent/orchestrator.py",
+                "import": "omni_agent.orchestrator",
+                "class": "AgentOrchestrator",
+                "example": 'result = agent.delegate("example task")',
+            },
+            "web_agent": {
+                "file": "omni_agent/agents/web_agent.py",
+                "import": "omni_agent.agents.web_agent",
+                "class": "WebAgent",
+                "example": 'result = agent.execute("example task")',
+            },
+            "code_agent": {
+                "file": "omni_agent/agents/code_agent.py",
+                "import": "omni_agent.agents.code_agent",
+                "class": "CodeAgent",
+                "example": 'result = agent.execute("example task")',
+            },
         }
 
-        for name, file_path in agents.items():
+        for name, module in modules.items():
+            file_path = module["file"]
             if not os.path.exists(file_path):
                 continue
 
             with open(file_path, "r", encoding="utf-8") as fh:
                 code = fh.read()
 
-            # Extract the module-level docstring
-            parts = code.split('"""')
-            docstring = parts[1].strip() if len(parts) >= 3 else "No documentation available."
+            tree = ast.parse(code)
+            docstring = ast.get_docstring(tree) or "No documentation available."
+            methods = self._collect_method_signatures(tree)
 
-            # Collect method signatures
-            methods = [
-                line.strip()
-                for line in code.splitlines()
-                if line.strip().startswith("def ") and "self" in line
-            ]
-
-            class_name = "".join(w.capitalize() for w in name.split("_"))
+            class_name = module["class"]
             md_lines = [
                 f"# {name.replace('_', ' ').title()}",
                 "",
@@ -59,9 +69,9 @@ class DocGenerator:
                 "## Example Usage",
                 "",
                 "```python",
-                f"from omni_agent.agents.{name} import {class_name}",
+                f"from {module['import']} import {class_name}",
                 f"agent = {class_name}()",
-                'result = agent.execute("example task")',
+                module["example"],
                 "```",
                 "",
             ]
@@ -70,7 +80,31 @@ class DocGenerator:
             with open(out_path, "w", encoding="utf-8") as fh:
                 fh.write("\n".join(md_lines))
 
-        self._update_docs_index(list(agents.keys()))
+        self._update_docs_index(list(modules.keys()))
+
+    def _collect_method_signatures(self, tree: ast.Module) -> List[str]:
+        """Collect signatures for instance methods defined in top-level classes."""
+        methods: List[str] = []
+
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+
+            for item in node.body:
+                if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+
+                if not item.args.args or item.args.args[0].arg != "self":
+                    continue
+
+                arg_names = [arg.arg for arg in item.args.args[1:]]
+                args_str = ", ".join(arg_names)
+                prefix = "async def" if isinstance(item, ast.AsyncFunctionDef) else "def"
+                methods.append(
+                    f"{prefix} {item.name}(self{', ' if args_str else ''}{args_str})"
+                )
+
+        return methods
 
     def _update_docs_index(self, agent_names: List[str]) -> None:
         """Regenerate the docs index README.

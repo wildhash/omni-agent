@@ -31,6 +31,7 @@ github_agent.py           # Main self-sustaining loop
 - Python 3.11+
 - Docker & Docker Compose
 - A GitHub personal access token (for `GITHUB_TOKEN`)
+- An API key for the backend (set `OMNI_AGENT_API_KEY`)
 
 ### Installation
 
@@ -42,6 +43,12 @@ pip install -r requirements.txt
 
 ```bash
 docker-compose up --build
+```
+
+For a more production-like setup (Weaviate API key auth enabled):
+
+```bash
+docker-compose -f docker-compose.prod.yml up --build
 ```
 
 ### Running locally
@@ -71,6 +78,7 @@ Only enable these in trusted environments (e.g. local development). Exposing the
 ```bash
 curl -X POST http://localhost:8000/task \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: $OMNI_AGENT_API_KEY" \
   -d '{"task": "book flight from SFO to NYC", "context": {"date": "2026-03-15"}}'
 ```
 
