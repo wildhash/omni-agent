@@ -25,7 +25,6 @@ def test_monitor_unfixable():
 
 
 def test_monitor_fixable_new_agent(monkeypatch):
-    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "error_type": "MissingAgent",
@@ -81,7 +80,6 @@ def test_diagnose_error_handles_invalid_json():
 
 
 def test_apply_fix_config_update(monkeypatch):
-    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -92,7 +90,6 @@ def test_apply_fix_config_update(monkeypatch):
 
 
 def test_apply_fix_unknown_type(monkeypatch):
-    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -103,7 +100,6 @@ def test_apply_fix_unknown_type(monkeypatch):
 
 
 def test_apply_fix_new_agent_empty_details(monkeypatch):
-    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -115,7 +111,6 @@ def test_apply_fix_new_agent_empty_details(monkeypatch):
 
 
 def test_apply_fix_code_change_empty_details(monkeypatch):
-    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -127,7 +122,6 @@ def test_apply_fix_code_change_empty_details(monkeypatch):
 
 
 def test_apply_fix_code_change_path_traversal(monkeypatch):
-    monkeypatch.setenv("OMNI_AGENT_ENABLE_SELF_MODIFY", "1")
     healer = _make_healer()
     diagnosis = {
         "fixable": True,
@@ -140,3 +134,17 @@ def test_apply_fix_code_change_path_traversal(monkeypatch):
     result = healer._apply_fix(diagnosis)
     assert result["status"] == "failed"
     assert "relative" in result["error"].lower() or "unsafe" in result["error"].lower()
+
+
+def test_apply_fix_code_change_proposed_when_apply_disabled():
+    healer = _make_healer()
+    diagnosis = {
+        "fixable": True,
+        "suggested_fix": {
+            "type": "code_change",
+            "file_path": "omni_agent/__init__.py",
+            "code_snippet": "print('hello')\n",
+        },
+    }
+    result = healer._apply_fix(diagnosis)
+    assert result["status"] == "proposed"
