@@ -68,6 +68,7 @@ def test_delegate_unknown_task():
     orchestrator = AgentOrchestrator()
     result = orchestrator.delegate("do something unknown")
     assert "error" in result
+    assert "orchestrator_warning" not in result
 
 
 def test_add_agent():
