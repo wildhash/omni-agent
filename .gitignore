@@ -25,6 +25,15 @@ env/
 # Environment variables
 .env
 .env.*
+!.env.example
+
+# If you add additional committed env templates, update the allowlist above (e.g. `!.env.<name>.example`).
+# Project policy: only allowlist specific template files; never use broad patterns (like `!.env*` or `!.env.*`) that could include real secrets.
+# Example allowlist entries:
+#   !.env.example              # current default template
+#   !.env.local.example
+#   !.env.prod.example
+# Template env files must only contain placeholder values; never commit real secrets.
 
 # Pytest / coverage
 .pytest_cache/

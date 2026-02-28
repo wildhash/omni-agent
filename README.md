@@ -39,6 +39,27 @@ github_agent.py           # Main self-sustaining loop
 pip install -r requirements.txt
 ```
 
+Create a local `.env` file (see `.env.example`) to configure your environment.
+
+**Required (local dev):**
+
+- `OMNI_AGENT_API_KEY=...` (preferred for all environments; only in exceptional cases, for unsafe testing on `localhost` only, you may set `OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1`)
+- `GITHUB_TOKEN=...` (use a least-privileged token)
+- `WEAVIATE_URL=http://localhost:8080` (HTTP is for local development)
+
+**Optional / deployment:**
+
+- `WEAVIATE_API_KEY`, `WEAVIATE_API_USER`
+- `DOCKER_USERNAME`, `DOCKER_PASSWORD` (only if you plan to push images to Docker Hub; CI deploy uses GHCR by default)
+
+Only `.env.example` is committed by default.
+
+See `.env.example` for supported environment variables, defaults, and security notes.
+
+**Never commit** your local `.env` or any file containing real secrets.
+
+For deployments, provide secrets via your deployment environment (Docker secrets, CI secrets, etc.), not committed files.
+
 ### Running with Docker Compose
 
 ```bash
@@ -63,8 +84,13 @@ Some capabilities are intentionally disabled by default because they can be dang
 
 - To enable `CodeAgent` Python execution: set `OMNI_AGENT_ENABLE_CODE_EXEC=1`
 - To enable `CodeAgent` Docker builds: set `OMNI_AGENT_ENABLE_DOCKER_BUILD=1`
+- To run without API authentication (local dev only): set `OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1`
 
-Only enable these in trusted environments (e.g. local development). Exposing them in a deployed API can lead to remote code execution.
+**Dangerous environment flags:** the `OMNI_AGENT_*` flags above are for isolated local development only. Do not enable them in any exposed, shared, staging, or production environment, including Docker containers bound to `0.0.0.0` or otherwise reachable over a network.
+
+`OMNI_AGENT_ALLOW_INSECURE_NOAUTH` disables API key checking entirely (and ignores `OMNI_AGENT_API_KEY`).
+
+**Warning:** Combining `OMNI_AGENT_ALLOW_INSECURE_NOAUTH` with code execution or Docker builds effectively exposes unauthenticated remote code execution. The application does not currently prevent this combination at runtime; this is intended only for tightly controlled, single-user local experiments.
 
 ## API
 

@@ -15,6 +15,14 @@ Thank you for your interest in contributing! This document provides guidelines f
 - Add docstrings to all public classes and methods.
 - Keep functions focused and small.
 
+## Environment files
+
+Only commit template env files such as `.env.example`. Never commit real `.env` or `.env.*` files that may contain secrets.
+
+When you introduce a new environment variable, you must document it in `.env.example` (and in `README.md` if it affects setup).
+
+If you add a new committed env template (like `.env.local.example`), also add it to the allowlist in `.gitignore` so it is tracked.
+
 ## Branching Strategy
 
 - `main` – stable, production-ready code.
