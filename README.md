@@ -115,6 +115,8 @@ curl -X POST http://localhost:8000/task \
   -d '{"task": "book flight from SFO to NYC", "context": {"date": "2026-03-15"}}'
 ```
 
+You can also force a specific agent by setting `context.agent` to one of: `web`, `code`, `voice`.
+
 ## Testing
 
 ```bash

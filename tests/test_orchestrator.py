@@ -43,6 +43,27 @@ def test_delegate_to_voice_agent():
     mock_voice.execute.assert_called_once()
 
 
+def test_delegate_respects_agent_hint_voice():
+    orchestrator = AgentOrchestrator()
+    mock_voice = MagicMock()
+    mock_voice.execute.return_value = {"status": "simulated"}
+    orchestrator.agents["voice"] = mock_voice
+
+    result = orchestrator.delegate("anything", {"agent": "voice", "text": "hi"})
+
+    assert result["status"] == "simulated"
+    mock_voice.execute.assert_called_once()
+
+
+def test_delegate_unknown_agent_hint_adds_warning():
+    orchestrator = AgentOrchestrator()
+    result = orchestrator.delegate("do something unknown", {"agent": "bogus"})
+
+    assert "error" in result
+    assert "orchestrator_warning" in result
+    assert "bogus" in result["orchestrator_warning"]
+
+
 def test_delegate_unknown_task():
     orchestrator = AgentOrchestrator()
     result = orchestrator.delegate("do something unknown")

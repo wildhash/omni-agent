@@ -7,7 +7,6 @@ the system can exercise a "voice" workflow without requiring external services.
 
 from __future__ import annotations
 
-import binascii
 import base64
 import io
 import math
@@ -102,7 +101,7 @@ class VoiceAgent:
         if audio_base64:
             try:
                 audio_bytes = base64.b64decode(audio_base64, validate=True)
-            except (binascii.Error, ValueError):
+            except ValueError:
                 return {
                     "error": "Invalid audio_base64 payload.",
                     "hint": "Provide base64-encoded audio bytes.",
