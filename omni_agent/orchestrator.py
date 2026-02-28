@@ -38,7 +38,15 @@ class AgentOrchestrator:
         task_lower = task.lower()
 
         agent_hint = str(context.get("agent", "")).strip().lower()
-        agent = self.agents.get(agent_hint) if agent_hint else None
+        if agent_hint:
+            agent = self.agents.get(agent_hint)
+            if agent is None:
+                return {
+                    "error": f"Unknown agent hint: '{agent_hint}'",
+                    "available_agents": sorted(self.agents.keys()),
+                }
+        else:
+            agent = None
 
         if agent is None:
             if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):

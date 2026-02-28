@@ -42,9 +42,14 @@ def _parse_context(raw: str) -> Tuple[Dict[str, Any], str | None]:
     if not raw:
         return {}, None
     try:
-        return json.loads(raw), None
+        value = json.loads(raw)
     except json.JSONDecodeError:
-        return {}, "Context must be valid JSON (object or array)."
+        return {}, "Context must be a valid JSON object."
+
+    if not isinstance(value, dict):
+        return {}, "Context must be a JSON object (e.g. {\"agent\": \"web\"})."
+
+    return value, None
 
 
 def build_app() -> Any:

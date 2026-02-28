@@ -13,6 +13,7 @@ def test_speak_returns_audio_base64():
 
     audio = base64.b64decode(result["audio_base64"])
     assert audio[:4] == b"RIFF"  # WAV header
+    assert len(audio) > 1000
 
 
 def test_transcribe_requires_audio():
