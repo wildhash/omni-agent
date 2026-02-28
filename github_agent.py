@@ -15,19 +15,42 @@ class GitHubAgent:
     ----------
     repo_name:
         Full repository name in ``owner/repo`` format.
+    poll_interval_seconds:
+        Seconds to sleep between successful cycles.
+    error_backoff_seconds:
+        Initial seconds to back off after an exception.
+    max_cycles:
+        Optional upper bound on the number of cycles to run.
+    max_error_backoff_seconds:
+        Maximum seconds to back off after repeated exceptions.
     """
 
-    def __init__(self, repo_name: str) -> None:
+    def __init__(
+        self,
+        repo_name: str,
+        *,
+        poll_interval_seconds: int = 3600,
+        error_backoff_seconds: int = 60,
+        max_cycles: int | None = None,
+        max_error_backoff_seconds: int = 3600,
+    ) -> None:
         self.repo_name = repo_name
         self.issue_agent = IssueAgent(repo_name)
         self.release_agent = ReleaseAgent(repo_name)
         self.doc_generator = DocGenerator()
+        self.poll_interval_seconds = poll_interval_seconds
+        self.error_backoff_seconds = error_backoff_seconds
+        self.max_cycles = max_cycles
+        self.max_error_backoff_seconds = max_error_backoff_seconds
 
     def run(self) -> None:
         """Main loop: monitor issues, refactor, document, test, and release."""
         print("🤖 GitHubAgent activated. Entering self-sustaining loop...")
 
-        while True:
+        cycles = 0
+        backoff = self.error_backoff_seconds
+
+        while self.max_cycles is None or cycles < self.max_cycles:
             try:
                 print("🔍 Checking for new issues...")
                 self.issue_agent.monitor_issues()
@@ -47,11 +70,19 @@ class GitHubAgent:
                     release_url = self.release_agent.create_release(version)
                     print(f"Release created: {release_url}")
 
-                sleep(3600)
+                backoff = self.error_backoff_seconds
+                sleep(self.poll_interval_seconds)
+
+            except KeyboardInterrupt:
+                return
 
             except Exception as exc:
                 print(f"⚠️ Error in main loop: {exc}")
-                sleep(60)
+                sleep(backoff)
+                backoff = min(backoff * 2, self.max_error_backoff_seconds)
+
+            finally:
+                cycles += 1
 
     def _auto_refactor(self) -> None:
         """Placeholder for LLM-based code refactoring logic."""
