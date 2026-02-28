@@ -17,6 +17,13 @@ def test_execute_python_no_code():
     assert "error" in result
 
 
+def test_execute_python_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("OMNI_AGENT_ENABLE_CODE_EXEC", raising=False)
+    agent = CodeAgent()
+    result = agent.execute("run code", {"code": "print('hello')"})
+    assert result["error"].startswith("Code execution is disabled by default")
+
+
 def test_execute_debug():
     agent = CodeAgent()
     result = agent.execute("debug this code", {"code": "x = 1"})
@@ -28,3 +35,10 @@ def test_execute_unknown_task():
     agent = CodeAgent()
     result = agent.execute("dance")
     assert "error" in result
+
+
+def test_containerize_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("OMNI_AGENT_ENABLE_DOCKER_BUILD", raising=False)
+    agent = CodeAgent()
+    result = agent.execute("docker build", {"path": "."})
+    assert result["error"].startswith("Docker builds are disabled by default")
