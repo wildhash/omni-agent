@@ -73,7 +73,10 @@ def build_app() -> Any:
         return orchestrator.delegate(task, ctx)
 
     def tts(text: str):
-        result = orchestrator.delegate("speak", {"text": text})
+        result = orchestrator.delegate(
+            "speak",
+            {"agent": "voice", "action": "speak", "text": text},
+        )
         if "audio_base64" not in result:
             return None, result
 
@@ -101,7 +104,10 @@ def build_app() -> Any:
                 ),
                 "received_type": str(type(audio_path)),
             }
-        result = orchestrator.delegate("transcribe", {"audio_path": audio_path})
+        result = orchestrator.delegate(
+            "transcribe",
+            {"agent": "voice", "action": "transcribe", "audio_path": audio_path},
+        )
         return result.get("text", ""), result
 
     with gr.Blocks(title="Omni-Agent") as demo:
