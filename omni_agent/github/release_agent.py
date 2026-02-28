@@ -1,7 +1,6 @@
 """ReleaseAgent: automates versioned GitHub releases with auto-generated changelogs."""
 
 import os
-import subprocess
 from typing import List
 
 from github import Github  # type: ignore
@@ -46,14 +45,11 @@ class ReleaseAgent:
             f"- {commit.commit.message.splitlines()[0]}" for commit in commits
         )
 
-        # Push the new tag
-        subprocess.run(["git", "tag", version], check=True)
-        subprocess.run(["git", "push", "origin", version], check=True)
-
         release = self.repo.create_git_release(
             tag=version,
             name=f"Omni-Agent {version}",
             message=f"## Changelog\n\n{changelog}",
+            target_commitish="main",
         )
         return release.html_url
 
