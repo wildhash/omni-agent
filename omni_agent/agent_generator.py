@@ -105,6 +105,14 @@ class AgentGenerator:
                 f"(found top-level {type(node).__name__})."
             )
 
+        class_def = agent_class_node
+        has_execute = any(
+            isinstance(node, ast.FunctionDef) and node.name == "execute"
+            for node in class_def.body
+        )
+        if not has_execute:
+            raise ValueError("Generated agent class must define an execute() method.")
+
     def _agent_file_path(self, agent_type: str) -> Path:
         return self.base_dir / "omni_agent" / "agents" / f"{agent_type.lower()}_agent.py"
 

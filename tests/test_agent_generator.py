@@ -55,7 +55,12 @@ def test_register_agent_success(tmp_path, monkeypatch):
 
 def test_register_agent_requires_activation(tmp_path):
     generator = AgentGenerator(base_dir=tmp_path)
-    with patch.object(generator.mistral, "generate_code", return_value="class AAgent:\n    pass\n"):
+    agent_code = (
+        "class AAgent:\n"
+        "    def execute(self, task: str, context: dict) -> dict:\n"
+        "        return {}\n"
+    )
+    with patch.object(generator.mistral, "generate_code", return_value=agent_code):
         result = generator.register_agent(MagicMock(), "A")
     assert result["status"] == "pending_approval"
 
