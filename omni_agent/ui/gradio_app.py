@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import json
 import tempfile
+import atexit
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -42,8 +43,8 @@ def _parse_context(raw: str) -> Tuple[Dict[str, Any], str | None]:
         return {}, None
     try:
         return json.loads(raw), None
-    except json.JSONDecodeError as exc:
-        return {}, f"Invalid JSON context: {exc}"
+    except json.JSONDecodeError:
+        return {}, "Context must be valid JSON (object or array)."
 
 
 def build_app() -> Any:
@@ -51,6 +52,14 @@ def build_app() -> Any:
     orchestrator = AgentOrchestrator()
     tts_files: deque[str] = deque()
     max_tts_files = 32
+
+    @atexit.register
+    def _cleanup_tts_files() -> None:
+        for path in list(tts_files):
+            try:
+                Path(path).unlink(missing_ok=True)
+            except OSError:
+                pass
 
     def run_task(task: str, context_json: str) -> Dict[str, Any]:
         ctx, err = _parse_context(context_json)
@@ -81,7 +90,10 @@ def build_app() -> Any:
     def stt(audio_path: Any):
         if not audio_path or not isinstance(audio_path, str):
             return "", {
-                "error": "Please record or upload a single audio file before transcribing.",
+                "error": (
+                    "No audio filepath received from UI. "
+                    "Please record or upload a single audio file before transcribing."
+                ),
             }
         result = orchestrator.delegate("transcribe", {"audio_path": audio_path})
         return result.get("text", ""), result

@@ -49,7 +49,10 @@ class VoiceAgent:
                 audio_path=context.get("audio_path"),
             )
 
-        return {"error": f"Voice task not recognized: '{task}'"}
+        return {
+            "error": f"Voice task not recognized: '{task}'",
+            "hint": "Use an 'action' of 'speak' or 'transcribe' in context.",
+        }
 
     def _speak(self, text: str) -> Dict[str, Any]:
         """Return a tiny WAV tone payload as base64.
@@ -60,7 +63,10 @@ class VoiceAgent:
             Text to "speak".
         """
         if not text:
-            return {"error": "No text provided."}
+            return {
+                "error": "No text provided for TTS.",
+                "hint": "Pass a non-empty 'text' field in context.",
+            }
 
         wav_bytes = self._tone_wav_bytes(duration_s=0.25)
         return {
@@ -88,20 +94,32 @@ class VoiceAgent:
         audio_bytes = b""
 
         if audio_b64 and audio_path:
-            return {"error": "Provide only one of audio_base64 or audio_path, not both."}
+            return {
+                "error": "Provide only one of audio_base64 or audio_path, not both.",
+                "hint": "Provide exactly one audio input in context.",
+            }
 
         if audio_b64:
             try:
                 audio_bytes = base64.b64decode(audio_b64, validate=True)
             except (binascii.Error, ValueError) as exc:
-                return {"error": f"Invalid audio_base64: {exc}"}
+                return {
+                    "error": f"Invalid audio_base64: {exc}",
+                    "hint": "Provide base64-encoded audio bytes.",
+                }
         elif audio_path:
             try:
                 audio_bytes = Path(audio_path).read_bytes()
             except OSError:
-                return {"error": f"Unable to read audio_path: {audio_path}"}
+                return {
+                    "error": f"Unable to read audio_path: {audio_path}",
+                    "hint": "Provide a readable file path in 'audio_path'.",
+                }
         else:
-            return {"error": "No audio provided."}
+            return {
+                "error": "No audio provided for transcription.",
+                "hint": "Provide exactly one of 'audio_base64' or 'audio_path' in context.",
+            }
 
         return {
             "status": "simulated",
