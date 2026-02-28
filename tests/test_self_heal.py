@@ -55,6 +55,7 @@ def test_diagnose_error_parses_json():
         '"suggested_fix": {"type": "config_update", "details": "", "code_snippet": ""}}'
     )
     fenced = (
+        "Some prose with braces {not json}.\n"
         "Here's the JSON:\n"
         "```json\n"
         f"{diagnosis_json}\n"

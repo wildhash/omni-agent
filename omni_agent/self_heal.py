@@ -157,6 +157,12 @@ class SelfHealer:
             return "\n".join(lines).strip()
 
         def extract_first_object(value: str) -> str:
+            lines = value.splitlines()
+            for idx, line in enumerate(lines):
+                if line.lstrip().startswith("{"):
+                    value = "\n".join(lines[idx:])
+                    break
+
             start = value.find("{")
             if start == -1:
                 raise ValueError("No JSON object found in model response")
