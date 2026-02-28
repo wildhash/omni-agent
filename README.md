@@ -50,6 +50,13 @@ docker-compose up --build
 uvicorn omni_agent.backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+### Security defaults
+
+Some capabilities are intentionally disabled by default because they can be dangerous if exposed via the API:
+
+- To enable `CodeAgent` Python execution: set `OMNI_AGENT_ENABLE_CODE_EXEC=1`
+- To enable `CodeAgent` Docker builds: set `OMNI_AGENT_ENABLE_DOCKER_BUILD=1`
+
 ## API
 
 | Method | Endpoint  | Description                    |

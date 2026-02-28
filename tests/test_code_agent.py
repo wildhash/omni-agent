@@ -3,7 +3,8 @@
 from omni_agent.agents.code_agent import CodeAgent
 
 
-def test_execute_python_hello():
+def test_execute_python_hello(monkeypatch):
+    monkeypatch.setenv("OMNI_AGENT_ENABLE_CODE_EXEC", "1")
     agent = CodeAgent()
     result = agent.execute("run code", {"code": "print('hello')"})
     assert result["returncode"] == 0

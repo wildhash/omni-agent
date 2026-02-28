@@ -1,11 +1,14 @@
 """CodeAgent: executes, debugs, and containerises code."""
 
+import os
 import subprocess
 from typing import Any, Dict, Optional
 
 
 class CodeAgent:
     """Executes Python code, provides debugging hints, and builds Docker images.
+
+    Code execution and Docker image builds are disabled by default.
 
     Methods
     -------
@@ -43,7 +46,7 @@ class CodeAgent:
             return {"error": f"Code task not recognised: '{task}'"}
 
     def _execute_python(self, code: str) -> Dict:
-        """Execute *code* in a sandboxed subprocess with a 10-second timeout.
+        """Execute *code* in a subprocess with a 10-second timeout.
 
         Parameters
         ----------
@@ -52,6 +55,10 @@ class CodeAgent:
         """
         if not code:
             return {"error": "No code provided."}
+        if os.getenv("OMNI_AGENT_ENABLE_CODE_EXEC") != "1":
+            return {
+                "error": "Code execution is disabled by default. Set OMNI_AGENT_ENABLE_CODE_EXEC=1 to enable.",
+            }
         try:
             result = subprocess.run(
                 ["python", "-c", code],
@@ -88,6 +95,10 @@ class CodeAgent:
         context:
             Dictionary with optional keys: 'path', 'dockerfile', 'tag'.
         """
+        if os.getenv("OMNI_AGENT_ENABLE_DOCKER_BUILD") != "1":
+            return {
+                "error": "Docker builds are disabled by default. Set OMNI_AGENT_ENABLE_DOCKER_BUILD=1 to enable.",
+            }
         try:
             import docker  # type: ignore
 
