@@ -39,6 +39,8 @@ github_agent.py           # Main self-sustaining loop
 pip install -r requirements.txt
 ```
 
+Create a local `.env` file (see `.env.example`) to configure `GITHUB_TOKEN`, `WEAVIATE_URL`, and API auth.
+
 ### Running with Docker Compose
 
 ```bash
