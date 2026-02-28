@@ -149,49 +149,9 @@ class SelfHealer:
 
             raise ValueError("No complete JSON object found in model response")
 
-        def remove_trailing_commas(value: str) -> str:
-            out: list[str] = []
-            in_string = False
-            escape = False
-            i = 0
-            while i < len(value):
-                ch = value[i]
-                if in_string:
-                    out.append(ch)
-                    if escape:
-                        escape = False
-                    elif ch == "\\":
-                        escape = True
-                    elif ch == '"':
-                        in_string = False
-                    i += 1
-                    continue
-
-                if ch == '"':
-                    in_string = True
-                    out.append(ch)
-                    i += 1
-                    continue
-
-                if ch == ",":
-                    j = i + 1
-                    while j < len(value) and value[j].isspace():
-                        j += 1
-                    if j < len(value) and value[j] in ("}", "]"):
-                        i += 1
-                        continue
-
-                out.append(ch)
-                i += 1
-
-            return "".join(out)
-
         stripped = strip_code_fence(text)
         candidate = extract_first_object(stripped)
-        try:
-            parsed = json.loads(candidate)
-        except json.JSONDecodeError:
-            parsed = json.loads(remove_trailing_commas(candidate))
+        parsed = json.loads(candidate)
 
         if not isinstance(parsed, dict):
             raise TypeError("Expected a JSON object")

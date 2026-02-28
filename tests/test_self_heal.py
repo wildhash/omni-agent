@@ -52,7 +52,7 @@ def test_diagnose_error_parses_json():
     healer = _make_healer()
     diagnosis_json = (
         '{"error_type": "APIFailure", "root_cause": "timeout", "fixable": false, '
-        '"suggested_fix": {"type": "config_update", "details": "", "code_snippet": ""},}'
+        '"suggested_fix": {"type": "config_update", "details": "", "code_snippet": ""}}'
     )
     fenced = (
         "Here's the JSON:\n"
