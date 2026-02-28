@@ -30,6 +30,25 @@ def test_transcribe_accepts_audio_base64():
     assert "text" in result
 
 
+def test_transcribe_rejects_dual_inputs():
+    agent = VoiceAgent()
+    payload = base64.b64encode(b"fake-audio").decode("ascii")
+    result = agent.execute("transcribe", {"audio_base64": payload, "audio_path": "/tmp/x"})
+    assert "error" in result
+
+
+def test_transcribe_rejects_invalid_audio_base64():
+    agent = VoiceAgent()
+    result = agent.execute("transcribe", {"audio_base64": "not-base64"})
+    assert "error" in result
+
+
+def test_action_dispatch_overrides_task_text():
+    agent = VoiceAgent()
+    result = agent.execute("dance", {"action": "speak", "text": "hello"})
+    assert result["status"] == "simulated"
+
+
 def test_unknown_task_returns_error():
     agent = VoiceAgent()
     result = agent.execute("dance")

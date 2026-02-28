@@ -69,6 +69,8 @@ For deployments, provide secrets via your deployment environment (Docker secrets
 docker-compose up --build
 ```
 
+Note: the `Dockerfile` is optimized for running the FastAPI service and only copies `omni_agent/` into the image.
+
 For a more production-like setup (Weaviate API key auth enabled):
 
 ```bash

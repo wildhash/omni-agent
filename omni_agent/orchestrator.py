@@ -44,8 +44,6 @@ class AgentOrchestrator:
             kw in task_lower
             for kw in (
                 "voice",
-                "audio",
-                "speech",
                 "speak",
                 "transcribe",
                 "tts",

@@ -43,6 +43,9 @@ def _parse_context(raw: str) -> Tuple[Dict[str, Any], str | None]:
 def build_app() -> Any:
     gr = _load_gradio()
     orchestrator = AgentOrchestrator()
+    tts_tmp = tempfile.NamedTemporaryFile(prefix="omni-agent-tts-", suffix=".wav", delete=False)
+    tts_path = tts_tmp.name
+    tts_tmp.close()
 
     def run_task(task: str, context_json: str) -> Dict[str, Any]:
         ctx, err = _parse_context(context_json)
@@ -56,15 +59,14 @@ def build_app() -> Any:
             return None, result
 
         data = base64.b64decode(result["audio_base64"])
-        with tempfile.NamedTemporaryFile(prefix="omni-agent-", suffix=".wav", delete=False) as fh:
+        with open(tts_path, "wb") as fh:
             fh.write(data)
-            wav_path = fh.name
 
-        return wav_path, result
+        return tts_path, result
 
     def stt(audio_path: str):
         if not audio_path:
-            return "", {"error": "No audio provided."}
+            return "", {"error": "Please record or upload audio before transcribing."}
         result = orchestrator.delegate("transcribe", {"audio_path": audio_path})
         return result.get("text", ""), result
 

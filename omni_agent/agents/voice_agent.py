@@ -7,6 +7,7 @@ the system can exercise a "voice" workflow without requiring external services.
 
 from __future__ import annotations
 
+import binascii
 import base64
 import io
 import math
@@ -32,12 +33,17 @@ class VoiceAgent:
 
     def execute(self, task: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         context = context or {}
+        action = str(context.get("action", "")).strip().lower()
         task_lower = task.lower()
 
-        if any(kw in task_lower for kw in ("speak", "tts", "text to speech")):
+        if action in {"speak", "tts"} or any(
+            kw in task_lower for kw in ("speak", "tts", "text to speech")
+        ):
             return self._speak(context.get("text", ""))
 
-        if any(kw in task_lower for kw in ("transcribe", "stt", "speech to text")):
+        if action in {"transcribe", "stt"} or any(
+            kw in task_lower for kw in ("transcribe", "stt", "speech to text")
+        ):
             return self._transcribe(
                 audio_b64=context.get("audio_base64"),
                 audio_path=context.get("audio_path"),
@@ -81,11 +87,14 @@ class VoiceAgent:
         """
         audio_bytes = b""
 
+        if audio_b64 and audio_path:
+            return {"error": "Provide only one of audio_base64 or audio_path, not both."}
+
         if audio_b64:
             try:
-                audio_bytes = base64.b64decode(audio_b64)
-            except Exception:
-                return {"error": "Invalid audio_base64."}
+                audio_bytes = base64.b64decode(audio_b64, validate=True)
+            except (binascii.Error, ValueError) as exc:
+                return {"error": f"Invalid audio_base64: {exc}"}
         elif audio_path:
             try:
                 audio_bytes = Path(audio_path).read_bytes()
