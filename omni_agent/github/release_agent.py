@@ -33,13 +33,15 @@ class ReleaseAgent:
         str
             URL of the newly created release.
         """
+        main_sha = self.repo.get_branch("main").commit.sha
+
         tags = list(self.repo.get_tags())
         last_tag = tags[0].name if tags else None
 
         if last_tag:
-            commits = self.repo.compare(last_tag, "main").commits
+            commits = self.repo.compare(last_tag, main_sha).commits
         else:
-            commits = list(self.repo.get_commits())
+            commits = list(self.repo.get_commits(sha=main_sha))
 
         changelog = "\n".join(
             f"- {commit.commit.message.splitlines()[0]}" for commit in commits
@@ -49,7 +51,7 @@ class ReleaseAgent:
             tag=version,
             name=f"Omni-Agent {version}",
             message=f"## Changelog\n\n{changelog}",
-            target_commitish="main",
+            target_commitish=main_sha,
         )
         return release.html_url
 
