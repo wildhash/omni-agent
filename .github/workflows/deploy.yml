@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  group: deploy-${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
@@ -51,7 +51,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # `pipefail` is intentional: we normalize the image name via a pipeline.
+          # Use strict shell options for safer CI scripts; normalize the image name to lowercase.
 
           GHCR_IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
           docker build -t "$GHCR_IMAGE:latest" -t "$GHCR_IMAGE:${{ github.sha }}" .
@@ -61,7 +61,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          # `pipefail` is intentional: we normalize the image name via a pipeline.
+          # Use strict shell options for safer CI scripts; normalize the image name to lowercase.
 
           GHCR_IMAGE="ghcr.io/$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
           docker push "$GHCR_IMAGE:latest"
