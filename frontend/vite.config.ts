@@ -13,11 +13,12 @@ export default defineConfig(({ mode }) => {
     throw new Error(`VITE_BACKEND_URL must start with http:// or https://, got: ${backendHttp}`)
   }
   const port = Number(env.VITE_PORT ?? '5173')
+  const serverPort = Number.isInteger(port) && port >= 1 && port <= 65535 ? port : 5173
 
   return {
     plugins: [react()],
     server: {
-      port: Number.isFinite(port) ? port : 5173,
+      port: serverPort,
       proxy: {
         '/ws': { target: backendWs, ws: true },
         '/api': { target: backendHttp, changeOrigin: true },

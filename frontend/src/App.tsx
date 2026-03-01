@@ -192,7 +192,7 @@ export default function App() {
         ws.close()
       }
       wsRef.current = null
-      streamRef.current?.getTracks().forEach(t => t.stop())
+      streamRef.current?.getTracks().forEach(t => { t.stop() })
       if (trackRef.current && onEndedRef.current) {
         trackRef.current.removeEventListener('ended', onEndedRef.current)
       }
@@ -240,23 +240,24 @@ export default function App() {
 
   // Demo mode sequence
   const runDemo = useCallback(() => {
-    if (capturing) return
+    if (capturing || demoMode) return
     stopDemo()
     setDemoMode(true)
     setScanning(true)
     DEMO.forEach(frame => {
       const t = setTimeout(() => {
         setAnalysis(frame.analysis)
-        frame.msgs.forEach(m => addMsg(m.kind, m.text))
+        frame.msgs.forEach(m => { addMsg(m.kind, m.text) })
       }, frame.delay)
       demoTimers.current.push(t)
     })
     const endT = setTimeout(() => { setScanning(false); setDemoMode(false) }, 14000)
     demoTimers.current.push(endT)
-  }, [addMsg, capturing, stopDemo])
+  }, [addMsg, capturing, demoMode, stopDemo])
 
   // Screen capture
   const startCapture = useCallback(async () => {
+    if (capturing || demoMode) return
     stopDemo()
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false })
@@ -275,7 +276,7 @@ export default function App() {
         track.addEventListener('ended', onEnded)
       }
     } catch { addMsg('error', '✗ Screen capture denied — running demo mode') ; runDemo() }
-  }, [addMsg, runDemo, stopDemo])
+  }, [addMsg, capturing, demoMode, runDemo, stopDemo])
 
   const stopCapture = useCallback(() => {
     if (trackRef.current && onEndedRef.current) {
@@ -283,7 +284,7 @@ export default function App() {
     }
     trackRef.current = null
     onEndedRef.current = null
-    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current?.getTracks().forEach(t => { t.stop() })
     streamRef.current = null
     if (videoRef.current) { videoRef.current.srcObject = null }
     clearSendInterval()
@@ -326,14 +327,16 @@ export default function App() {
       clearSendInterval()
       addMsg('warn', '⚠  WS disconnected')
     }
-    ws.onerror = () => { addMsg('error', '✗ Backend unavailable — demo mode active') }
+    ws.onerror = () => { addMsg('error', '✗ Backend unavailable — demo not started') }
     ws.onmessage = e => {
       try {
         const data = JSON.parse(e.data)
         if (data.type === 'analysis') {
           setAnalysis(data.result)
           const r: Analysis = data.result
-          if (r.issues.length > 0) r.issues.forEach(i => addMsg('warn', `⚠  ${i}`))
+          if (r.issues.length > 0) {
+            r.issues.forEach(i => { addMsg('warn', `⚠  ${i}`) })
+          }
           else if (r.elements.length > 0) addMsg('success', `✓  ${r.elements.length} elements — score ${r.score}`)
           addMsg('info', `💬 ${r.insights}`)
         } else if (data.type === 'status' && typeof data.message === 'string') {
@@ -515,7 +518,7 @@ export default function App() {
       <footer className="controls">
         <div className="controls-left">
           {!capturing ? (
-            <button className="btn btn-primary" onClick={startCapture}>▶ Capture Screen</button>
+            <button className="btn btn-primary" onClick={startCapture} disabled={demoMode}>▶ Capture Screen</button>
           ) : (
             <button className="btn btn-danger" onClick={stopCapture}>■ Stop</button>
           )}
