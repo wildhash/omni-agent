@@ -10,12 +10,14 @@ class AgentOrchestrator:
         from omni_agent.agents.web_agent import WebAgent
         from omni_agent.agents.code_agent import CodeAgent
         from omni_agent.agents.voice_agent import VoiceAgent
+        from omni_agent.agents.vision_agent import VisionAgent
         from omni_agent.self_heal import SelfHealer
 
         self.agents: Dict[str, Any] = {
             "web": WebAgent(),
             "code": CodeAgent(),
             "voice": VoiceAgent(),
+            "vision": VisionAgent(),
         }
         self.self_healer = SelfHealer(self)
 
@@ -47,7 +49,18 @@ class AgentOrchestrator:
             agent = None
 
         if agent is None:
-            if any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
+            vision_keywords = (
+                "screenshot", "capture", "snap", "analyze", "analyse",
+                "inspect", "vision", "see frontend", "look at", "view page",
+                "diff", "compare ui", "elements",
+            )
+            is_vision_task = any(kw in task_lower for kw in vision_keywords) or (
+                "vision" in task_lower
+            )
+
+            if is_vision_task:
+                agent = self.agents.get("vision")
+            elif any(kw in task_lower for kw in ("flight", "book", "scrape", "browse", "web")):
                 agent = self.agents.get("web")
             else:
                 voice_keywords = (

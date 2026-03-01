@@ -14,9 +14,11 @@ omni_agent/
 ├── agents/
 │   ├── web_agent.py      # Browser automation & web interactions
 │   ├── code_agent.py     # Code execution, debugging & containerization
-│   └── voice_agent.py    # Simulated voice I/O primitives (TTS/STT demo)
+│   ├── voice_agent.py    # gTTS + Whisper (TTS/STT)
+│   └── vision_agent.py   # Screenshot, DOM analysis (Playwright)
 ├── backend/
-│   └── main.py           # FastAPI REST API
+│   ├── main.py           # FastAPI API + production web UI
+│   └── static/           # Single-page app (Task, Voice, Vision)
 ├── ui/
 │   └── gradio_app.py     # Gradio demo UI (optional)
 ├── github/
@@ -77,11 +79,15 @@ For a more production-like setup (Weaviate API key auth enabled):
 docker-compose -f docker-compose.prod.yml up --build
 ```
 
-### Running locally
+### Running locally (production UI)
+
+The FastAPI app serves the **production web UI** at the root. One process for API + frontend:
 
 ```bash
 uvicorn omni_agent.backend.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+Open **http://localhost:8000** for the app (Task, Voice, Vision). Use **http://localhost:8000/docs** for the API. For local dev without auth, set `OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1` in `.env`; otherwise set and save an API key in the UI header.
 
 ### Security defaults
 
@@ -123,11 +129,23 @@ You can also force a specific agent by setting `context.agent` to one of: `web`,
 pytest tests/
 ```
 
-## Gradio UI (optional)
+## Gradio UI (optional demo)
+
+For a quick **demo UI** with Gradio (separate port):
 
 ```bash
 pip install -r requirements-ui.txt
+pip install playwright && python -m playwright install chromium
 python -m omni_agent.ui.gradio_app
+```
+
+Opens at http://127.0.0.1:7860. For **production use**, run the FastAPI app and use the built-in UI at http://localhost:8000.
+
+Open http://127.0.0.1:7860. For production-style binding and optional public link:
+
+```bash
+GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python -m omni_agent.ui.gradio_app
+# Optional: GRADIO_SHARE=1 for a temporary public URL
 ```
 
 ## LiveKit voice plugin (optional)

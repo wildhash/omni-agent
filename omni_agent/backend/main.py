@@ -2,9 +2,11 @@
 
 Endpoints
 ---------
+GET  /
+    Production web UI (single-page app).
 POST /task
     Delegate a task to the appropriate agent.
-GET /memory
+GET  /memory
     Retrieve relevant task history from Weaviate.
 
 Example
@@ -23,12 +25,18 @@ import binascii
 import logging
 import os
 import uuid
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import anyio
+from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+load_dotenv()
 
 from omni_agent.orchestrator import AgentOrchestrator
 from omni_agent.vision.vision_agent import build_analyser
@@ -36,8 +44,11 @@ from omni_agent.vision.vision_agent import build_analyser
 logger = logging.getLogger(__name__)
 
 orchestrator = AgentOrchestrator()
-
 app = FastAPI(title="Omni-Agent API / OmniSight", version="0.2.0")
+
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 CORS_ORIGINS = [
     o.strip()
@@ -103,6 +114,15 @@ def _get_ws_api_key(ws: WebSocket) -> str | None:
     return ws.query_params.get("api_key") or ws.headers.get("x-api-key")
 
 
+@app.get("/")
+async def root():
+    """Serve the production web UI."""
+    index = _STATIC_DIR / "index.html"
+    if index.exists():
+        return FileResponse(index)
+    return {"message": "Omni-Agent API", "docs": "/docs"}
+
+
 def _get_weaviate_client():
     """Return a Weaviate client, or *None* if the server is unavailable."""
     try:
@@ -125,7 +145,11 @@ async def handle_task(
     """Delegate a task to the appropriate agent and log it to memory."""
     try:
         _require_api_key(x_api_key)
-        result = orchestrator.delegate(request.task, request.context)
+        # Run in thread pool: orchestrator uses sync Playwright, which must not
+        # run inside the asyncio event loop (FastAPI/uvicorn).
+        result = await asyncio.to_thread(
+            orchestrator.delegate, request.task, request.context
+        )
 
         client = _get_weaviate_client()
         if client is not None:
