@@ -167,6 +167,13 @@ export default function App() {
     }
   }, [])
 
+  const stopDemo = useCallback(() => {
+    demoTimers.current.forEach(clearTimeout)
+    demoTimers.current = []
+    setDemoMode(false)
+    setScanning(false)
+  }, [])
+
   // Auto-scroll feed
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight
@@ -234,10 +241,9 @@ export default function App() {
   // Demo mode sequence
   const runDemo = useCallback(() => {
     if (capturing) return
+    stopDemo()
     setDemoMode(true)
     setScanning(true)
-    demoTimers.current.forEach(clearTimeout)
-    demoTimers.current = []
     DEMO.forEach(frame => {
       const t = setTimeout(() => {
         setAnalysis(frame.analysis)
@@ -247,10 +253,11 @@ export default function App() {
     })
     const endT = setTimeout(() => { setScanning(false); setDemoMode(false) }, 14000)
     demoTimers.current.push(endT)
-  }, [addMsg, capturing])
+  }, [addMsg, capturing, stopDemo])
 
   // Screen capture
   const startCapture = useCallback(async () => {
+    stopDemo()
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false })
       streamRef.current = stream
@@ -268,7 +275,7 @@ export default function App() {
         track.addEventListener('ended', onEnded)
       }
     } catch { addMsg('error', '✗ Screen capture denied — running demo mode') ; runDemo() }
-  }, [addMsg, runDemo])
+  }, [addMsg, runDemo, stopDemo])
 
   const stopCapture = useCallback(() => {
     if (trackRef.current && onEndedRef.current) {
@@ -304,8 +311,9 @@ export default function App() {
   const connectWS = useCallback(() => {
     disconnectWS()
 
-    const wsUrl = new URL('/ws/vision', window.location.href)
-    wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+    const loc = window.location
+    const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = new URL('/ws/vision', `${protocol}//${loc.host}`)
     const apiKey = (import.meta as any).env?.VITE_OMNI_AGENT_API_KEY as string | undefined
     if (apiKey) wsUrl.searchParams.set('api_key', apiKey)
 
@@ -328,6 +336,11 @@ export default function App() {
           if (r.issues.length > 0) r.issues.forEach(i => addMsg('warn', `⚠  ${i}`))
           else if (r.elements.length > 0) addMsg('success', `✓  ${r.elements.length} elements — score ${r.score}`)
           addMsg('info', `💬 ${r.insights}`)
+        } else if (data.type === 'status' && typeof data.message === 'string') {
+          addMsg('info', data.message)
+        } else if (data.type === 'error' && typeof data.msg === 'string') {
+          const suffix = typeof data.error_id === 'string' ? ` (id: ${data.error_id})` : ''
+          addMsg('error', `${data.msg}${suffix}`)
         }
       } catch (err) {
         console.error('WS message parse failed', err)
@@ -344,14 +357,14 @@ export default function App() {
     clearSendInterval()
 
     sendIntervalRef.current = setInterval(() => {
-      const video = videoRef.current; const canvas = captureRef.current
-      if (!video || !canvas || video.readyState < 2 || ws.readyState !== WebSocket.OPEN) return
+      const video = videoRef.current; const canvas = captureRef.current; const wsCurrent = wsRef.current
+      if (!video || !canvas || !wsCurrent || video.readyState < 2 || wsCurrent.readyState !== WebSocket.OPEN) return
       canvas.width = video.videoWidth || 1280; canvas.height = video.videoHeight || 720
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       ctx.drawImage(video, 0, 0)
       const frame = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]
-      ws.send(JSON.stringify({ type: 'frame', data: frame, w: canvas.width, h: canvas.height }))
+      wsCurrent.send(JSON.stringify({ type: 'frame', data: frame, w: canvas.width, h: canvas.height }))
       frameCountRef.current++
       const now = Date.now()
       if (now - lastFpsTs.current >= 1000) {
