@@ -13,9 +13,12 @@ omni_agent/
 ├── orchestrator.py       # Routes tasks to the right agent
 ├── agents/
 │   ├── web_agent.py      # Browser automation & web interactions
-│   └── code_agent.py     # Code execution, debugging & containerization
+│   ├── code_agent.py     # Code execution, debugging & containerization
+│   └── voice_agent.py    # Simulated voice I/O primitives (TTS/STT demo)
 ├── backend/
 │   └── main.py           # FastAPI REST API
+├── ui/
+│   └── gradio_app.py     # Gradio demo UI (optional)
 ├── github/
 │   ├── issue_agent.py    # Auto-responds to GitHub issues
 │   └── release_agent.py  # Automates versioned releases
@@ -66,6 +69,8 @@ For deployments, provide secrets via your deployment environment (Docker secrets
 docker-compose up --build
 ```
 
+Note: the `Dockerfile` is optimized for running the FastAPI service and keeps the image minimal by copying only `omni_agent/` and `github_agent.py`.
+
 For a more production-like setup (Weaviate API key auth enabled):
 
 ```bash
@@ -110,10 +115,46 @@ curl -X POST http://localhost:8000/task \
   -d '{"task": "book flight from SFO to NYC", "context": {"date": "2026-03-15"}}'
 ```
 
+You can also force a specific agent by setting `context.agent` to one of: `web`, `code`, `voice`.
+
 ## Testing
 
 ```bash
 pytest tests/
+```
+
+## Gradio UI (optional)
+
+```bash
+pip install -r requirements-ui.txt
+python -m omni_agent.ui.gradio_app
+```
+
+## LiveKit voice plugin (optional)
+
+This bridges a LiveKit room to `AgentOrchestrator` via data messages, and will
+publish a basic audio track for `VoiceAgent` TTS results.
+
+For audio playback, the plugin expects TTS output to be a 16kHz mono, 16-bit PCM
+WAV payload.
+
+For safety, the LiveKit plugin only accepts voice-oriented tasks by default.
+
+```bash
+pip install -r requirements-livekit.txt
+
+export LIVEKIT_URL=...         # e.g. wss://your-project.livekit.cloud
+export LIVEKIT_ROOM=omni-agent
+export LIVEKIT_IDENTITY=omni-agent
+
+# Either set a pre-generated JWT:
+export LIVEKIT_TOKEN=...
+
+# Or let the plugin mint a short-lived token:
+# export LIVEKIT_API_KEY=...
+# export LIVEKIT_API_SECRET=...
+
+python -m omni_agent.voice.livekit_plugin
 ```
 
 ## Contributing

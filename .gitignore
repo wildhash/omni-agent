@@ -19,9 +19,6 @@ env/
 .idea/
 *.swp
 
-# Docker
-.dockerignore
-
 # Environment variables
 .env
 .env.*
