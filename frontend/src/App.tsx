@@ -160,6 +160,13 @@ export default function App() {
     setMessages(prev => [...prev.slice(-60), { id: nextId(), kind, text, ts }])
   }, [])
 
+  const clearSendInterval = useCallback(() => {
+    if (sendIntervalRef.current != null) {
+      clearInterval(sendIntervalRef.current)
+      sendIntervalRef.current = undefined
+    }
+  }, [])
+
   // Auto-scroll feed
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight
@@ -168,8 +175,16 @@ export default function App() {
   useEffect(() => {
     return () => {
       demoTimers.current.forEach(clearTimeout)
-      clearInterval(sendIntervalRef.current)
-      wsRef.current?.close()
+      clearSendInterval()
+      const ws = wsRef.current
+      if (ws) {
+        ws.onopen = null
+        ws.onclose = null
+        ws.onerror = null
+        ws.onmessage = null
+        ws.close()
+      }
+      wsRef.current = null
       streamRef.current?.getTracks().forEach(t => t.stop())
       if (trackRef.current && onEndedRef.current) {
         trackRef.current.removeEventListener('ended', onEndedRef.current)
@@ -177,7 +192,7 @@ export default function App() {
       trackRef.current = null
       onEndedRef.current = null
     }
-  }, [])
+  }, [clearSendInterval])
 
   // Draw overlay boxes on canvas
   useEffect(() => {
@@ -264,16 +279,30 @@ export default function App() {
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     if (videoRef.current) { videoRef.current.srcObject = null }
-    clearInterval(sendIntervalRef.current)
+    clearSendInterval()
     setCapturing(false)
     setScanning(false)
     addMsg('system', '■ Capture stopped')
-  }, [addMsg])
+  }, [addMsg, clearSendInterval])
+
+  const disconnectWS = useCallback(() => {
+    const ws = wsRef.current
+    if (ws) {
+      ws.onopen = null
+      ws.onclose = null
+      ws.onerror = null
+      ws.onmessage = null
+      ws.close()
+    }
+    wsRef.current = null
+    clearSendInterval()
+    setConnected(false)
+    setScanning(false)
+  }, [clearSendInterval])
 
   // WebSocket + frame sending
   const connectWS = useCallback(() => {
-    wsRef.current?.close()
-    clearInterval(sendIntervalRef.current)
+    disconnectWS()
 
     const wsUrl = new URL('/ws/vision', window.location.href)
     wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -286,7 +315,7 @@ export default function App() {
     ws.onclose = () => {
       setConnected(false)
       setScanning(false)
-      clearInterval(sendIntervalRef.current)
+      clearSendInterval()
       addMsg('warn', '⚠  WS disconnected')
     }
     ws.onerror = () => { addMsg('error', '✗ Backend unavailable — demo mode active') }
@@ -304,7 +333,7 @@ export default function App() {
         console.error('WS message parse failed', err)
       }
     }
-  }, [addMsg])
+  }, [addMsg, clearSendInterval, disconnectWS])
 
   useEffect(() => {
     if (!capturing || !connected) return
@@ -312,7 +341,7 @@ export default function App() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return
 
     setScanning(true)
-    clearInterval(sendIntervalRef.current)
+    clearSendInterval()
 
     sendIntervalRef.current = setInterval(() => {
       const video = videoRef.current; const canvas = captureRef.current
@@ -332,9 +361,9 @@ export default function App() {
     }, 500)
 
     return () => {
-      clearInterval(sendIntervalRef.current)
+      clearSendInterval()
     }
-  }, [capturing, connected])
+  }, [capturing, clearSendInterval, connected])
 
   // Score color
   const scoreColor = analysis.score >= 80 ? '#00ff88' : analysis.score >= 60 ? '#ff6b35' : '#ff3366'
@@ -483,7 +512,7 @@ export default function App() {
           {!connected ? (
             <button className="btn btn-outline" onClick={connectWS}>⬡ Connect Backend</button>
           ) : (
-            <button className="btn btn-outline btn-active" onClick={() => { wsRef.current?.close(); setConnected(false) }}>
+            <button className="btn btn-outline btn-active" onClick={disconnectWS}>
               ⬡ Disconnect
             </button>
           )}

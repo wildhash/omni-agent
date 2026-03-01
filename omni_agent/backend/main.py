@@ -86,13 +86,17 @@ def _require_api_key(x_api_key: str | None) -> None:
 
 
 def _ws_origin_allowed(origin: str | None) -> bool:
-    if ALLOW_INSECURE_NOAUTH:
-        return True
     if not origin:
         return True
     if "*" in CORS_ALLOW_ORIGINS:
         return True
     return origin in CORS_ALLOW_ORIGINS
+
+
+@app.on_event("startup")
+async def _log_insecure_noauth() -> None:
+    if ALLOW_INSECURE_NOAUTH:
+        logger.warning("OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1 set; API key checks disabled")
 
 
 def _get_ws_api_key(ws: WebSocket) -> str | None:
@@ -220,7 +224,7 @@ async def vision_ws(ws: WebSocket) -> None:
                         timeout=VISION_ANALYSIS_TIMEOUT_S,
                     )
                 await ws.send_json({"type": "analysis", "result": result.to_dict()})
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 await ws.send_json({"type": "error", "msg": "Vision analysis timed out"})
             except Exception:
                 error_id = uuid.uuid4().hex[:10]
