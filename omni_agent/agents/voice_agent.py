@@ -1,22 +1,28 @@
-"""VoiceAgent: real TTS (gTTS) and STT (Whisper)."""
+"""VoiceAgent.
+
+This repo keeps the default `VoiceAgent` offline-friendly and deterministic so
+unit tests and demo runs don't require external dependencies.
+"""
 
 from __future__ import annotations
 
 import base64
-import io
 from pathlib import Path
 from typing import Any, Dict, Optional
+import uuid
+import wave
+from io import BytesIO
 
 
 class VoiceAgent:
-    """Real text-to-speech (gTTS) and speech-to-text (Whisper).
+    """Simulated TTS/STT.
 
-    - speak / tts: gTTS → WAV (via pydub), returned as base64.
-    - transcribe / stt: Whisper transcription from audio file or base64.
+    - speak / tts: returns a small valid WAV payload as base64.
+    - transcribe / stt: returns a deterministic transcript and byte count.
     """
 
     def __init__(self) -> None:
-        self._whisper_model = None
+        self._session_id = uuid.uuid4().hex
 
     def execute(self, task: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         context = context or {}
@@ -42,34 +48,19 @@ class VoiceAgent:
         }
 
     def _speak(self, text: str) -> Dict[str, Any]:
-        """Real TTS via gTTS. Returns MP3 as base64 (no ffmpeg required)."""
+        """Simulate TTS by returning a short WAV payload as base64."""
         if not text:
             return {
                 "error": "No text provided for TTS.",
                 "hint": "Pass a non-empty 'text' field in context.",
             }
-        try:
-            from gtts import gTTS
-        except ImportError as e:
-            return {
-                "error": f"TTS dependencies missing: {e}",
-                "hint": "Run: pip install gtts",
-            }
-        try:
-            mp3_fp = io.BytesIO()
-            tts = gTTS(text=text, lang="en", slow=False)
-            tts.write_to_fp(mp3_fp)
-            mp3_bytes = mp3_fp.getvalue()
-        except Exception as exc:
-            return {
-                "error": str(exc),
-                "hint": "Check network (gTTS uses Google).",
-            }
+
+        wav_bytes = _build_silent_wav_bytes(seconds=1.0)
         return {
-            "status": "success",
+            "status": "simulated",
             "text": text,
-            "audio_base64": base64.b64encode(mp3_bytes).decode("ascii"),
-            "content_type": "audio/mpeg",
+            "audio_base64": base64.b64encode(wav_bytes).decode("ascii"),
+            "content_type": "audio/wav",
         }
 
     def _transcribe(
@@ -106,54 +97,21 @@ class VoiceAgent:
                 "error": "No audio provided for transcription.",
                 "hint": "Provide exactly one of 'audio_base64' or 'audio_path' in context.",
             }
-        try:
-            import whisper
-        except ImportError:
-            return {
-                "error": "Whisper is not installed.",
-                "hint": "Run: pip install openai-whisper",
-            }
-
-        try:
-            if self._whisper_model is None:
-                self._whisper_model = whisper.load_model("base")
-            model = self._whisper_model
-        except Exception as exc:
-            return {
-                "error": f"Failed to load Whisper model: {exc}",
-                "hint": "Run: pip install openai-whisper. First run downloads the model.",
-            }
-
-        path_to_use: str | None = None
-        if audio_path and Path(audio_path).exists():
-            path_to_use = audio_path
-        if path_to_use is None:
-            if not audio_bytes:
-                return {"error": "Audio is empty.", "hint": "Provide non-empty audio."}
-            import tempfile
-            suffix = ".wav"
-            if audio_bytes[:3] == b"ID3" or (len(audio_bytes) >= 2 and audio_bytes[:2] == b"\xff\xfb"):
-                suffix = ".mp3"
-            elif audio_bytes[:4] != b"RIFF":
-                suffix = ".mp3"
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-                f.write(audio_bytes)
-                path_to_use = f.name
-
-        try:
-            result = model.transcribe(path_to_use, fp16=False, language="en")
-            text = (result.get("text") or "").strip()
-        except Exception as exc:
-            return {
-                "error": str(exc),
-                "hint": "Ensure audio is WAV/MP3 or a format Whisper supports. Try recording again.",
-            }
-        finally:
-            if path_to_use and path_to_use != audio_path:
-                Path(path_to_use).unlink(missing_ok=True)
-
         return {
-            "status": "success",
-            "text": text or "(no speech detected)",
+            "status": "simulated",
+            "text": f"(simulated transcript {self._session_id})",
             "bytes": len(audio_bytes),
         }
+
+
+def _build_silent_wav_bytes(*, seconds: float) -> bytes:
+    sample_rate = 16_000
+    num_samples = max(1, int(sample_rate * seconds))
+
+    buf = BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(b"\x00\x00" * num_samples)
+    return buf.getvalue()
