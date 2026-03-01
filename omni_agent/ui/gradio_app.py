@@ -15,6 +15,7 @@ import base64
 import json
 import tempfile
 import atexit
+import os
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -81,9 +82,21 @@ def build_app() -> Any:
             return None, result
 
         data = base64.b64decode(result["audio_base64"])
-        with tempfile.NamedTemporaryFile(prefix="omni-agent-tts-", suffix=".wav", delete=False) as fh:
-            fh.write(data)
-            wav_path = fh.name
+        try:
+            fd, wav_path = tempfile.mkstemp(prefix="omni-agent-tts-", suffix=".wav")
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+        except OSError:
+            try:
+                if "wav_path" in locals():
+                    Path(wav_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+            return None, {
+                "error": "Unable to write temporary WAV file for playback.",
+                "hint": "Check filesystem permissions and available disk space.",
+                "voice_result": result,
+            }
 
         tts_files.append(wav_path)
         while len(tts_files) > max_tts_files:

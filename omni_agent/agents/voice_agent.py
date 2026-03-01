@@ -85,7 +85,7 @@ class VoiceAgent:
 
         Parameters
         ----------
-        audio_b64:
+        audio_base64:
             Base64-encoded audio bytes.
         audio_path:
             Path to an audio file on disk.
