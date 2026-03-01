@@ -139,6 +139,8 @@ export default function App() {
   const overlayRef = useRef<HTMLCanvasElement>(null) // visible overlay
   const wsRef      = useRef<WebSocket | null>(null)
   const streamRef  = useRef<MediaStream | null>(null)
+  const trackRef   = useRef<MediaStreamTrack | null>(null)
+  const onEndedRef = useRef<(() => void) | null>(null)
   const sendIntervalRef = useRef<ReturnType<typeof setInterval>>()
   const demoTimers      = useRef<ReturnType<typeof setTimeout>[]>([])
   const frameCountRef   = useRef(0)
@@ -163,12 +165,29 @@ export default function App() {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight
   }, [messages])
 
+  useEffect(() => {
+    return () => {
+      demoTimers.current.forEach(clearTimeout)
+      clearInterval(sendIntervalRef.current)
+      wsRef.current?.close()
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      if (trackRef.current && onEndedRef.current) {
+        trackRef.current.removeEventListener('ended', onEndedRef.current)
+      }
+      trackRef.current = null
+      onEndedRef.current = null
+    }
+  }, [])
+
   // Draw overlay boxes on canvas
   useEffect(() => {
     const canvas = overlayRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) {
+      console.warn('Could not get 2D context for overlay canvas')
+      return
+    }
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     const W = canvas.width, H = canvas.height
     for (const el of analysis.elements) {
@@ -199,6 +218,7 @@ export default function App() {
 
   // Demo mode sequence
   const runDemo = useCallback(() => {
+    if (capturing) return
     setDemoMode(true)
     setScanning(true)
     demoTimers.current.forEach(clearTimeout)
@@ -212,7 +232,7 @@ export default function App() {
     })
     const endT = setTimeout(() => { setScanning(false); setDemoMode(false) }, 14000)
     demoTimers.current.push(endT)
-  }, [addMsg])
+  }, [addMsg, capturing])
 
   // Screen capture
   const startCapture = useCallback(async () => {
@@ -222,11 +242,25 @@ export default function App() {
       if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play() }
       setCapturing(true)
       addMsg('system', '📺 Screen capture started')
-      stream.getVideoTracks()[0].addEventListener('ended', () => stopCapture())
+      const track = stream.getVideoTracks()[0]
+      if (track) {
+        if (trackRef.current && onEndedRef.current) {
+          trackRef.current.removeEventListener('ended', onEndedRef.current)
+        }
+        trackRef.current = track
+        const onEnded = () => stopCapture()
+        onEndedRef.current = onEnded
+        track.addEventListener('ended', onEnded)
+      }
     } catch { addMsg('error', '✗ Screen capture denied — running demo mode') ; runDemo() }
   }, [addMsg, runDemo])
 
   const stopCapture = useCallback(() => {
+    if (trackRef.current && onEndedRef.current) {
+      trackRef.current.removeEventListener('ended', onEndedRef.current)
+    }
+    trackRef.current = null
+    onEndedRef.current = null
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
     if (videoRef.current) { videoRef.current.srcObject = null }
@@ -238,28 +272,55 @@ export default function App() {
 
   // WebSocket + frame sending
   const connectWS = useCallback(() => {
-    const ws = new WebSocket(`ws://${location.hostname}:8000/ws/vision`)
+    wsRef.current?.close()
+    clearInterval(sendIntervalRef.current)
+
+    const wsUrl = new URL('/ws/vision', window.location.href)
+    wsUrl.protocol = wsUrl.protocol === 'https:' ? 'wss:' : 'ws:'
+    const apiKey = (import.meta as any).env?.VITE_OMNI_AGENT_API_KEY as string | undefined
+    if (apiKey) wsUrl.searchParams.set('api_key', apiKey)
+
+    const ws = new WebSocket(wsUrl.toString())
     wsRef.current = ws
     ws.onopen = () => { setConnected(true); addMsg('system', '🔗 Connected to OmniSight backend') }
-    ws.onclose = () => { setConnected(false); addMsg('warn', '⚠  WS disconnected') }
+    ws.onclose = () => {
+      setConnected(false)
+      setScanning(false)
+      clearInterval(sendIntervalRef.current)
+      addMsg('warn', '⚠  WS disconnected')
+    }
     ws.onerror = () => { addMsg('error', '✗ Backend unavailable — demo mode active') }
     ws.onmessage = e => {
-      const data = JSON.parse(e.data)
-      if (data.type === 'analysis') {
-        setAnalysis(data.result)
-        const r: Analysis = data.result
-        if (r.issues.length > 0) r.issues.forEach(i => addMsg('warn', `⚠  ${i}`))
-        else if (r.elements.length > 0) addMsg('success', `✓  ${r.elements.length} elements — score ${r.score}`)
-        addMsg('info', `💬 ${r.insights}`)
+      try {
+        const data = JSON.parse(e.data)
+        if (data.type === 'analysis') {
+          setAnalysis(data.result)
+          const r: Analysis = data.result
+          if (r.issues.length > 0) r.issues.forEach(i => addMsg('warn', `⚠  ${i}`))
+          else if (r.elements.length > 0) addMsg('success', `✓  ${r.elements.length} elements — score ${r.score}`)
+          addMsg('info', `💬 ${r.insights}`)
+        }
+      } catch (err) {
+        console.error('WS message parse failed', err)
       }
     }
-    // Send frames every 500ms when capturing
+  }, [addMsg])
+
+  useEffect(() => {
+    if (!capturing || !connected) return
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+
+    setScanning(true)
     clearInterval(sendIntervalRef.current)
+
     sendIntervalRef.current = setInterval(() => {
       const video = videoRef.current; const canvas = captureRef.current
       if (!video || !canvas || video.readyState < 2 || ws.readyState !== WebSocket.OPEN) return
       canvas.width = video.videoWidth || 1280; canvas.height = video.videoHeight || 720
-      canvas.getContext('2d')!.drawImage(video, 0, 0)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      ctx.drawImage(video, 0, 0)
       const frame = canvas.toDataURL('image/jpeg', 0.6).split(',')[1]
       ws.send(JSON.stringify({ type: 'frame', data: frame, w: canvas.width, h: canvas.height }))
       frameCountRef.current++
@@ -269,8 +330,11 @@ export default function App() {
         frameCountRef.current = 0; lastFpsTs.current = now
       }
     }, 500)
-    setScanning(true)
-  }, [addMsg])
+
+    return () => {
+      clearInterval(sendIntervalRef.current)
+    }
+  }, [capturing, connected])
 
   // Score color
   const scoreColor = analysis.score >= 80 ? '#00ff88' : analysis.score >= 60 ? '#ff6b35' : '#ff3366'
@@ -413,7 +477,7 @@ export default function App() {
           ) : (
             <button className="btn btn-danger" onClick={stopCapture}>■ Stop</button>
           )}
-          <button className="btn btn-accent" onClick={runDemo} disabled={demoMode}>◉ Run Demo</button>
+          <button className="btn btn-accent" onClick={runDemo} disabled={demoMode || capturing}>◉ Run Demo</button>
         </div>
         <div className="controls-right">
           {!connected ? (

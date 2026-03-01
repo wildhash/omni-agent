@@ -18,6 +18,7 @@ import logging
 import os
 import random
 import time
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -41,6 +42,65 @@ with EXACTLY this structure (no markdown, no explanation, just valid JSON):
 bbox values are 0-1 ratios of the image (x1,y1 top-left; x2,y2 bottom-right).
 Focus on: contrast, accessibility labels, alignment, overflow, responsive issues.
 Return ONLY the JSON. No markdown fences."""
+
+
+def _safe_json_from_model(raw: str) -> dict[str, Any] | None:
+    content = raw.strip()
+    if content.startswith("```"):
+        lines = content.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].startswith("```"):
+            lines = lines[:-1]
+        content = "\n".join(lines).strip()
+
+    try:
+        parsed = json.loads(content)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        start = content.find("{")
+        end = content.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            return None
+        try:
+            parsed = json.loads(content[start : end + 1])
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+
+
+def _analysis_result_from_model_output(raw: str, *, latency_ms: float) -> AnalysisResult:
+    data = _safe_json_from_model(raw)
+    if data is None:
+        return AnalysisResult(
+            issues=["invalid model output"],
+            insights="Model returned invalid JSON",
+            score=0,
+            latency_ms=latency_ms,
+        )
+
+    elements_raw = data.get("elements")
+    issues_raw = data.get("issues")
+    score_raw = data.get("score")
+
+    elements: list[dict[str, Any]] = [
+        el for el in elements_raw if isinstance(el, dict)
+    ] if isinstance(elements_raw, list) else []
+    issues: list[str] = (
+        [str(i) for i in issues_raw if i is not None]
+        if isinstance(issues_raw, list)
+        else []
+    )
+    insights = data.get("insights") if isinstance(data.get("insights"), str) else ""
+    score = int(score_raw) if isinstance(score_raw, (int, float)) else 0
+
+    return AnalysisResult(
+        elements=elements,
+        issues=issues,
+        insights=insights,
+        score=score,
+        latency_ms=latency_ms,
+    )
 
 
 @dataclass
@@ -68,14 +128,12 @@ class GeminiVisionAnalyser:
         self._model = genai.GenerativeModel("gemini-2.0-flash-exp")
 
     def analyse(self, jpeg_bytes: bytes) -> AnalysisResult:
-        import google.generativeai as genai  # type: ignore
         t0 = time.perf_counter()
         img_part = {"mime_type": "image/jpeg", "data": base64.b64encode(jpeg_bytes).decode()}
         resp = self._model.generate_content([ANALYSIS_PROMPT, img_part])
         raw = resp.text.strip()
         latency = (time.perf_counter() - t0) * 1000
-        data = json.loads(raw)
-        return AnalysisResult(latency_ms=latency, **{k: data[k] for k in ("elements","issues","insights","score") if k in data})
+        return _analysis_result_from_model_output(raw, latency_ms=latency)
 
 
 class ClaudeVisionAnalyser:
@@ -99,8 +157,7 @@ class ClaudeVisionAnalyser:
         )
         raw = msg.content[0].text.strip()
         latency = (time.perf_counter() - t0) * 1000
-        data = json.loads(raw)
-        return AnalysisResult(latency_ms=latency, **{k: data[k] for k in ("elements","issues","insights","score") if k in data})
+        return _analysis_result_from_model_output(raw, latency_ms=latency)
 
 
 class SimulatedAnalyser:
@@ -155,7 +212,7 @@ class SimulatedAnalyser:
         # Cycle through frames slowly so the demo tells a story
         if self._call % 4 == 0:
             self._idx = min(self._idx + 1, len(self._FRAMES) - 1)
-        result = self._FRAMES[self._idx]
+        result = deepcopy(self._FRAMES[self._idx])
         result.latency_ms = random.uniform(80, 200)
         return result
 

@@ -210,7 +210,7 @@ body {
   background: rgba(5,5,8,0.85);
   backdrop-filter: blur(8px);
   z-index: 4;
-  animation: fadeIn 0.3s ease;
+  animation: fade-in 0.3s ease;
 }
 .score-num { font-family: var(--mono); font-size: 22px; font-weight: 700; line-height: 1 }
 .score-lbl { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8; margin-top: 2px }
@@ -237,7 +237,7 @@ body {
   border-radius: 3px;
   color: var(--red);
   font-family: var(--mono);
-  animation: fadeIn 0.2s ease;
+  animation: fade-in 0.2s ease;
 }
 
 /* Legend */
@@ -292,12 +292,12 @@ body {
   font-size: 11px;
   border-left: 2px solid transparent;
   border-left-color: var(--kind-color);
-  animation: slideIn 0.15s ease;
+  animation: slide-in 0.15s ease;
   transition: background 0.1s;
 }
 .feed-msg:hover { background: rgba(255,255,255,0.03) }
 .feed-icon { text-align: center }
-.feed-text { color: var(--text); line-height: 1.5; word-break: break-word }
+.feed-text { color: var(--text); line-height: 1.5; overflow-wrap: anywhere }
 .feed-ts   { color: var(--text2); font-size: 9px; white-space: nowrap; align-self: flex-start }
 
 /* Score panel */
@@ -383,11 +383,11 @@ body {
   0%, 100% { transform: translateY(0) }
   50%       { transform: translateY(-8px) }
 }
-@keyframes fadeIn {
+@keyframes fade-in {
   from { opacity: 0 }
   to   { opacity: 1 }
 }
-@keyframes slideIn {
+@keyframes slide-in {
   from { opacity: 0; transform: translateX(-6px) }
   to   { opacity: 1; transform: translateX(0) }
 }

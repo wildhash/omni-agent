@@ -1,5 +1,5 @@
 # OmniSight — Visual Dev Agent
-### WeMakeDevs VisionPossible Hackathon Entry
+## WeMakeDevs VisionPossible Hackathon Entry
 
 > **"AI coding agents are code-blind. They write code but can't see if the UI looks right. OmniSight closes the loop."**
 
@@ -27,7 +27,7 @@ The coding agent now has **eyes**. It closes the visual feedback loop.
 
 ## Architecture
 
-```
+```text
 Browser (React + Vite)
   ├── Screen Capture (getDisplayMedia → canvas → JPEG)
   ├── WebSocket client → ws://backend:8000/ws/vision
@@ -59,7 +59,15 @@ pip install -r requirements-vision.txt
 # Optional: set one or both keys for real vision analysis
 export GEMINI_API_KEY="..."
 export ANTHROPIC_API_KEY="..."
-export OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1
+
+# Required unless OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1 is set
+export OMNI_AGENT_API_KEY="dev-key"
+
+# If you set OMNI_AGENT_API_KEY, pass it to the frontend so the browser WS can auth
+# export VITE_OMNI_AGENT_API_KEY="$OMNI_AGENT_API_KEY"
+
+# Optional (local-only): disable API key auth
+# export OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1
 
 python -m omni_agent.backend.main
 # → ws://localhost:8000/ws/vision

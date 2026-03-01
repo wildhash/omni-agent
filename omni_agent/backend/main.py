@@ -17,11 +17,15 @@ Example
       -d '{"task": "book flight from SFO to NYC", "context": {"date": "2026-03-15"}}'
 """
 
+import asyncio
 import base64
+import binascii
 import logging
 import os
+import uuid
 from typing import Any, Dict, Optional
 
+import anyio
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -32,18 +36,36 @@ from omni_agent.vision.vision_agent import build_analyser
 logger = logging.getLogger(__name__)
 
 orchestrator = AgentOrchestrator()
-_vision_analyser = None  # lazy-init
 
 app = FastAPI(title="Omni-Agent API / OmniSight", version="0.2.0")
+
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "OMNI_AGENT_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if o.strip()
+]
+CORS_ALLOW_ORIGINS = ["*"] if "*" in CORS_ORIGINS else CORS_ORIGINS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ALLOW_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 API_KEY = os.getenv("OMNI_AGENT_API_KEY")
 ALLOW_INSECURE_NOAUTH = os.getenv("OMNI_AGENT_ALLOW_INSECURE_NOAUTH") == "1"
+
+MAX_FRAME_B64_LEN = int(os.getenv("OMNISIGHT_MAX_FRAME_B64", "2000000"))
+MAX_FRAME_JPEG_BYTES = int(os.getenv("OMNISIGHT_MAX_FRAME_JPEG", "1500000"))
+VISION_ANALYSIS_TIMEOUT_S = float(os.getenv("OMNISIGHT_ANALYSIS_TIMEOUT_S", "30"))
+
+app.state.vision_lock = asyncio.Lock()
+app.state.vision_sem = asyncio.Semaphore(int(os.getenv("OMNISIGHT_MAX_CONCURRENCY", "1")))
+app.state.vision_analyser = None
 
 
 class TaskRequest(BaseModel):
@@ -61,6 +83,20 @@ def _require_api_key(x_api_key: str | None) -> None:
         )
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+def _ws_origin_allowed(origin: str | None) -> bool:
+    if ALLOW_INSECURE_NOAUTH:
+        return True
+    if not origin:
+        return True
+    if "*" in CORS_ALLOW_ORIGINS:
+        return True
+    return origin in CORS_ALLOW_ORIGINS
+
+
+def _get_ws_api_key(ws: WebSocket) -> str | None:
+    return ws.query_params.get("api_key") or ws.headers.get("x-api-key")
 
 
 def _get_weaviate_client():
@@ -131,10 +167,29 @@ async def vision_ws(ws: WebSocket) -> None:
     Client sends JSON: {"type": "frame", "data": "<base64 jpeg>", "w": int, "h": int}
     Server replies:    {"type": "analysis", "result": {...}}  |  {"type": "error", "msg": "..."}
     """
-    global _vision_analyser
+    if not _ws_origin_allowed(ws.headers.get("origin")):
+        await ws.close(code=1008)
+        return
+
+    try:
+        _require_api_key(_get_ws_api_key(ws))
+    except HTTPException:
+        await ws.close(code=1008)
+        return
+
     await ws.accept()
-    if _vision_analyser is None:
-        _vision_analyser = build_analyser()
+
+    async with app.state.vision_lock:
+        if app.state.vision_analyser is None:
+            try:
+                app.state.vision_analyser = build_analyser()
+            except Exception:
+                logger.exception("Vision analyser init failed")
+                await ws.send_json({"type": "error", "msg": "Vision analyser init failed"})
+                await ws.close(code=1011)
+                return
+    analyser = app.state.vision_analyser
+
     await ws.send_json({"type": "status", "message": "OmniSight vision pipeline ready"})
     try:
         while True:
@@ -144,13 +199,35 @@ async def vision_ws(ws: WebSocket) -> None:
             b64 = data.get("data", "")
             if not b64:
                 continue
-            jpeg_bytes = base64.b64decode(b64)
+            if len(b64) > MAX_FRAME_B64_LEN:
+                await ws.send_json({"type": "error", "msg": "Frame too large"})
+                continue
+
             try:
-                result = _vision_analyser.analyse(jpeg_bytes)
+                jpeg_bytes = base64.b64decode(b64, validate=True)
+            except (binascii.Error, ValueError):
+                await ws.send_json({"type": "error", "msg": "Invalid frame encoding"})
+                continue
+
+            if len(jpeg_bytes) > MAX_FRAME_JPEG_BYTES:
+                await ws.send_json({"type": "error", "msg": "Frame too large"})
+                continue
+
+            try:
+                async with app.state.vision_sem:
+                    result = await asyncio.wait_for(
+                        anyio.to_thread.run_sync(analyser.analyse, jpeg_bytes),
+                        timeout=VISION_ANALYSIS_TIMEOUT_S,
+                    )
                 await ws.send_json({"type": "analysis", "result": result.to_dict()})
-            except Exception as exc:
-                logger.exception("Vision analysis failed")
-                await ws.send_json({"type": "error", "msg": str(exc)})
+            except TimeoutError:
+                await ws.send_json({"type": "error", "msg": "Vision analysis timed out"})
+            except Exception:
+                error_id = uuid.uuid4().hex[:10]
+                logger.exception("Vision analysis failed (error_id=%s)", error_id)
+                await ws.send_json(
+                    {"type": "error", "msg": "Vision analysis failed", "error_id": error_id}
+                )
     except WebSocketDisconnect:
         logger.info("Vision client disconnected")
 
