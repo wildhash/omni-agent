@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Omni-Agent</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>Omni-Agent</h1>
+    <p class="tagline">Multi-agent orchestration: Web, Voice, Vision</p>
+    <div class="api-key-bar">
+      <label for="apiKey">API Key</label>
+      <input type="password" id="apiKey" placeholder="Leave empty if OMNI_AGENT_ALLOW_INSECURE_NOAUTH=1" autocomplete="off" />
+      <button type="button" id="saveKey">Save</button>
+      <span id="keyStatus" class="key-status"></span>
+    </div>
+  </header>
+
+  <main class="main">
+    <nav class="tabs" role="tablist">
+      <button type="button" class="tab active" data-tab="task" role="tab">Task</button>
+      <button type="button" class="tab" data-tab="voice" role="tab">Voice</button>
+      <button type="button" class="tab" data-tab="vision" role="tab">Vision</button>
+    </nav>
+
+    <section id="panel-task" class="panel active" role="tabpanel">
+      <div class="form-group">
+        <label for="taskInput">Task</label>
+        <input type="text" id="taskInput" placeholder="e.g. browse web, book flight from SFO to NYC" />
+      </div>
+      <div class="form-group">
+        <label for="contextInput">Context (JSON)</label>
+        <textarea id="contextInput" rows="4" placeholder='{"url": "https://example.com"} or {"from": "SFO", "to": "NYC", "date": "2026-03-15"}'></textarea>
+      </div>
+      <button type="button" id="runTask" class="btn btn-primary">Run</button>
+      <div id="taskResult" class="result-box"></div>
+    </section>
+
+    <section id="panel-voice" class="panel" role="tabpanel">
+      <div class="voice-section">
+        <h3>Text to speech</h3>
+        <div class="form-group">
+          <label for="ttsText">Text</label>
+          <input type="text" id="ttsText" placeholder="Enter text to speak" />
+        </div>
+        <button type="button" id="ttsBtn" class="btn btn-primary">Speak</button>
+        <div id="ttsAudio" class="audio-out"></div>
+        <div id="ttsResult" class="result-box small"></div>
+      </div>
+      <div class="voice-section">
+        <h3>Speech to text</h3>
+        <div class="form-group">
+          <label for="sttFile">Audio file</label>
+          <input type="file" id="sttFile" accept="audio/*" />
+        </div>
+        <button type="button" id="sttBtn" class="btn btn-primary">Transcribe</button>
+        <div id="sttText" class="result-box small"></div>
+      </div>
+    </section>
+
+    <section id="panel-vision" class="panel" role="tabpanel">
+      <div class="form-group">
+        <label for="visionUrl">Target URL</label>
+        <input type="url" id="visionUrl" value="https://example.com" placeholder="https://..." />
+      </div>
+      <div class="btn-row">
+        <button type="button" id="visionScreenshot" class="btn btn-primary">Screenshot</button>
+        <button type="button" id="visionAnalyze" class="btn">Analyze DOM</button>
+        <button type="button" id="visionElements" class="btn">List elements</button>
+      </div>
+      <div id="visionImage" class="vision-image"></div>
+      <div id="visionResult" class="result-box"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <a href="/docs">API docs</a>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

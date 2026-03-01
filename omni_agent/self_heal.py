@@ -86,9 +86,18 @@ class SelfHealer:
             return self._parse_model_json(response)
         except Exception as exc:
             self.logger.error("Diagnosis failed: %s", exc)
+            msg = str(exc).lower()
+            if "401" in msg or "unauthorized" in msg:
+                root_cause = "Mistral API key invalid or missing. Set MISTRAL_API_KEY in .env for self-heal."
+            elif "429" in msg or "rate" in msg:
+                root_cause = "Mistral rate limit exceeded. Retry later."
+            elif "500" in msg or "503" in msg:
+                root_cause = "Mistral service temporarily unavailable."
+            else:
+                root_cause = str(exc)
             return {
                 "error_type": "DiagnosisFailed",
-                "root_cause": str(exc),
+                "root_cause": root_cause,
                 "fixable": False,
             }
 

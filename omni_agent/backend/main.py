@@ -2,9 +2,11 @@
 
 Endpoints
 ---------
+GET  /
+    Production web UI (single-page app).
 POST /task
     Delegate a task to the appropriate agent.
-GET /memory
+GET  /memory
     Retrieve relevant task history from Weaviate.
 
 Example
@@ -17,16 +19,27 @@ Example
       -d '{"task": "book flight from SFO to NYC", "context": {"date": "2026-03-15"}}'
 """
 
+import asyncio
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+load_dotenv()
 
 from omni_agent.orchestrator import AgentOrchestrator
 
 orchestrator = AgentOrchestrator()
-app = FastAPI(title="Omni-Agent API", version="0.1.0")
+app = FastAPI(title="Omni-Agent", version="0.1.0")
+
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+if _STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 API_KEY = os.getenv("OMNI_AGENT_API_KEY")
 ALLOW_INSECURE_NOAUTH = os.getenv("OMNI_AGENT_ALLOW_INSECURE_NOAUTH") == "1"
@@ -47,6 +60,15 @@ def _require_api_key(x_api_key: str | None) -> None:
         )
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+@app.get("/")
+async def root():
+    """Serve the production web UI."""
+    index = _STATIC_DIR / "index.html"
+    if index.exists():
+        return FileResponse(index)
+    return {"message": "Omni-Agent API", "docs": "/docs"}
 
 
 def _get_weaviate_client():
@@ -71,7 +93,11 @@ async def handle_task(
     """Delegate a task to the appropriate agent and log it to memory."""
     try:
         _require_api_key(x_api_key)
-        result = orchestrator.delegate(request.task, request.context)
+        # Run in thread pool: orchestrator uses sync Playwright, which must not
+        # run inside the asyncio event loop (FastAPI/uvicorn).
+        result = await asyncio.to_thread(
+            orchestrator.delegate, request.task, request.context
+        )
 
         client = _get_weaviate_client()
         if client is not None:
