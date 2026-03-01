@@ -17,16 +17,30 @@ Example
       -d '{"task": "book flight from SFO to NYC", "context": {"date": "2026-03-15"}}'
 """
 
+import base64
+import logging
 import os
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from omni_agent.orchestrator import AgentOrchestrator
+from omni_agent.vision.vision_agent import build_analyser
+
+logger = logging.getLogger(__name__)
 
 orchestrator = AgentOrchestrator()
-app = FastAPI(title="Omni-Agent API", version="0.1.0")
+_vision_analyser = None  # lazy-init
+
+app = FastAPI(title="Omni-Agent API / OmniSight", version="0.2.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 API_KEY = os.getenv("OMNI_AGENT_API_KEY")
 ALLOW_INSECURE_NOAUTH = os.getenv("OMNI_AGENT_ALLOW_INSECURE_NOAUTH") == "1"
@@ -108,6 +122,37 @@ async def recall_memory(
         query=query
     ).do()
     return result
+
+
+@app.websocket("/ws/vision")
+async def vision_ws(ws: WebSocket) -> None:
+    """WebSocket endpoint for real-time frame analysis.
+
+    Client sends JSON: {"type": "frame", "data": "<base64 jpeg>", "w": int, "h": int}
+    Server replies:    {"type": "analysis", "result": {...}}  |  {"type": "error", "msg": "..."}
+    """
+    global _vision_analyser
+    await ws.accept()
+    if _vision_analyser is None:
+        _vision_analyser = build_analyser()
+    await ws.send_json({"type": "status", "message": "OmniSight vision pipeline ready"})
+    try:
+        while True:
+            data = await ws.receive_json()
+            if data.get("type") != "frame":
+                continue
+            b64 = data.get("data", "")
+            if not b64:
+                continue
+            jpeg_bytes = base64.b64decode(b64)
+            try:
+                result = _vision_analyser.analyse(jpeg_bytes)
+                await ws.send_json({"type": "analysis", "result": result.to_dict()})
+            except Exception as exc:
+                logger.exception("Vision analysis failed")
+                await ws.send_json({"type": "error", "msg": str(exc)})
+    except WebSocketDisconnect:
+        logger.info("Vision client disconnected")
 
 
 if __name__ == "__main__":
