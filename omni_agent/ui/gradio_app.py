@@ -12,10 +12,13 @@ Run:
 from __future__ import annotations
 
 import base64
+import binascii
+import io
 import json
 import tempfile
 import atexit
 import os
+import wave
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, Tuple
@@ -81,20 +84,63 @@ def build_app() -> Any:
         if "audio_base64" not in result:
             return None, result
 
-        data = base64.b64decode(result["audio_base64"])
         try:
-            fd, wav_path = tempfile.mkstemp(prefix="omni-agent-tts-", suffix=".wav")
+            data = base64.b64decode(result["audio_base64"])
+        except (ValueError, binascii.Error) as exc:
+            return None, {
+                "status": "error",
+                "error": "VoiceAgent returned an invalid audio_base64 payload.",
+                "hint": "Check the voice backend and try again.",
+                "details": str(exc),
+                "voice_result": result,
+            }
+
+        if not data:
+            return None, {
+                "status": "error",
+                "error": "VoiceAgent returned an empty audio payload.",
+                "hint": "Check the voice backend and try again.",
+                "voice_result": result,
+            }
+
+        try:
+            with wave.open(io.BytesIO(data), "rb") as wav:
+                if wav.getnframes() == 0:
+                    return None, {
+                        "status": "error",
+                        "error": "VoiceAgent returned a WAV payload with no audio frames.",
+                        "hint": "Check the voice backend and try again.",
+                        "voice_result": result,
+                    }
+        except wave.Error as exc:
+            return None, {
+                "status": "error",
+                "error": "VoiceAgent returned an invalid WAV payload.",
+                "hint": "Check the voice backend and try again.",
+                "details": str(exc),
+                "voice_result": result,
+            }
+        wav_path = None
+        fd = None
+        try:
+            fd, path = tempfile.mkstemp(prefix="omni-agent-tts-", suffix=".wav")
+            wav_path = path
             with os.fdopen(fd, "wb") as fh:
+                fd = None
                 fh.write(data)
-        except OSError:
+        except OSError as exc:
             try:
-                if "wav_path" in locals():
+                if fd is not None:
+                    os.close(fd)
+                if wav_path:
                     Path(wav_path).unlink(missing_ok=True)
             except OSError:
                 pass
             return None, {
+                "status": "error",
                 "error": "Unable to write temporary WAV file for playback.",
                 "hint": "Check filesystem permissions and available disk space.",
+                "details": str(exc),
                 "voice_result": result,
             }
 

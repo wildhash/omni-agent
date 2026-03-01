@@ -81,7 +81,7 @@ class VoiceAgent:
         audio_base64: str | None,
         audio_path: str | None,
     ) -> Dict[str, Any]:
-        """Return a simulated transcription.
+        """Transcribe an audio input to text.
 
         Parameters
         ----------
@@ -89,6 +89,13 @@ class VoiceAgent:
             Base64-encoded audio bytes.
         audio_path:
             Path to an audio file on disk.
+
+        Returns
+        -------
+        dict
+            On success, returns a payload containing ``text`` and ``status``.
+            On error, returns ``error`` and (when possible) a ``hint`` string
+            describing the expected inputs.
         """
         audio_bytes = b""
 

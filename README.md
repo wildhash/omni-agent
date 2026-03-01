@@ -135,6 +135,11 @@ python -m omni_agent.ui.gradio_app
 This bridges a LiveKit room to `AgentOrchestrator` via data messages, and will
 publish a basic audio track for `VoiceAgent` TTS results.
 
+For audio playback, the plugin expects TTS output to be a 16kHz mono, 16-bit PCM
+WAV payload.
+
+For safety, the LiveKit plugin only accepts voice-oriented tasks by default.
+
 ```bash
 pip install -r requirements-livekit.txt
 
