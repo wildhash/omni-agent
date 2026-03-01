@@ -130,6 +130,28 @@ pip install -r requirements-ui.txt
 python -m omni_agent.ui.gradio_app
 ```
 
+## LiveKit voice plugin (optional)
+
+This bridges a LiveKit room to `AgentOrchestrator` via data messages, and will
+publish a basic audio track for `VoiceAgent` TTS results.
+
+```bash
+pip install -r requirements-livekit.txt
+
+export LIVEKIT_URL=...         # e.g. wss://your-project.livekit.cloud
+export LIVEKIT_ROOM=omni-agent
+export LIVEKIT_IDENTITY=omni-agent
+
+# Either set a pre-generated JWT:
+export LIVEKIT_TOKEN=...
+
+# Or let the plugin mint a short-lived token:
+# export LIVEKIT_API_KEY=...
+# export LIVEKIT_API_SECRET=...
+
+python -m omni_agent.voice.livekit_plugin
+```
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
