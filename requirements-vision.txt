@@ -1,0 +1,5 @@
+-r requirements.txt
+# Vision agent — install the provider(s) you need:
+google-generativeai>=0.8.0   # Gemini Vision (preferred)
+anthropic>=0.40.0             # Claude Vision (fallback)
+Pillow>=10.0.0                # Image utilities
