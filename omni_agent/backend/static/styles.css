@@ -184,6 +184,10 @@ body {
 .result-box.small {
   max-height: 120px;
 }
+.result-box--empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
 .result-box.error {
   border-color: var(--error);
   color: #fca5a5;
@@ -221,6 +225,28 @@ body {
   display: block;
   max-width: 100%;
   height: auto;
+}
+
+.ai-capture-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+.ai-capture-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: var(--text);
+}
+.ai-capture-hint {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.ai-capture-hint code {
+  background: var(--surface);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
 }
 
 .footer {

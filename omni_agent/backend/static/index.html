@@ -28,14 +28,14 @@
     <section id="panel-task" class="panel active" role="tabpanel">
       <div class="form-group">
         <label for="taskInput">Task</label>
-        <input type="text" id="taskInput" placeholder="e.g. browse web, book flight from SFO to NYC" />
+        <input type="text" id="taskInput" placeholder="e.g. browse web, book flight from SFO to NYC" autofocus />
       </div>
       <div class="form-group">
         <label for="contextInput">Context (JSON)</label>
         <textarea id="contextInput" rows="4" placeholder='{"url": "https://example.com"} or {"from": "SFO", "to": "NYC", "date": "2026-03-15"}'></textarea>
       </div>
       <button type="button" id="runTask" class="btn btn-primary">Run</button>
-      <div id="taskResult" class="result-box"></div>
+      <div id="taskResult" class="result-box result-box--empty" aria-live="polite">Run a task to see results.</div>
     </section>
 
     <section id="panel-voice" class="panel" role="tabpanel">
@@ -63,7 +63,7 @@
     <section id="panel-vision" class="panel" role="tabpanel">
       <div class="form-group">
         <label for="visionUrl">Target URL</label>
-        <input type="url" id="visionUrl" value="https://example.com" placeholder="https://..." />
+        <input type="url" id="visionUrl" value="http://127.0.0.1:8000" placeholder="http://localhost:8000" />
       </div>
       <div class="btn-row">
         <button type="button" id="visionScreenshot" class="btn btn-primary">Screenshot</button>
@@ -72,6 +72,18 @@
       </div>
       <div id="visionImage" class="vision-image"></div>
       <div id="visionResult" class="result-box"></div>
+
+      <div class="ai-capture-section">
+        <h3>For AI: see this frontend in real time</h3>
+        <p class="ai-capture-hint">Capture the page so the AI can read it from <code>.omni-agent/screenshot.png</code> and <code>.omni-agent/frontend-summary.txt</code> for self-improvement.</p>
+        <div class="btn-row">
+          <button type="button" id="aiCaptureBtn" class="btn btn-primary">Capture for AI</button>
+          <button type="button" id="aiSaveBtn" class="btn">Save to project</button>
+          <button type="button" id="aiCopySummaryBtn" class="btn">Copy summary</button>
+        </div>
+        <div id="aiCaptureStatus" class="key-status"></div>
+        <div id="aiCaptureImage" class="vision-image"></div>
+      </div>
     </section>
   </main>
 

@@ -40,3 +40,6 @@ coverage.xml
 
 # mypy
 .mypy_cache/
+
+# AI snapshot (capture for AI writes here; optional to share with AI)
+.omni-agent/

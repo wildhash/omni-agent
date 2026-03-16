@@ -85,6 +85,15 @@ def _get_weaviate_client():
         return None
 
 
+def _is_vision_task(task: str, context: Optional[Dict]) -> bool:
+    """True if this is a vision task (screenshot / analyze / elements)."""
+    if not context and not task:
+        return False
+    t = (task or "").lower()
+    vision_kw = ("screenshot", "capture", "snap", "analyze", "analyse", "inspect", "review", "element", "vision", "see", "look", "view", "diff", "compare")
+    return any(kw in t for kw in vision_kw)
+
+
 @app.post("/task")
 async def handle_task(
     request: TaskRequest,
@@ -93,11 +102,21 @@ async def handle_task(
     """Delegate a task to the appropriate agent and log it to memory."""
     try:
         _require_api_key(x_api_key)
-        # Run in thread pool: orchestrator uses sync Playwright, which must not
-        # run inside the asyncio event loop (FastAPI/uvicorn).
-        result = await asyncio.to_thread(
-            orchestrator.delegate, request.task, request.context
-        )
+        ctx = request.context or {}
+        task = request.task or ""
+
+        # Vision tasks: use async Playwright in this process to avoid "Sync API inside asyncio loop".
+        if _is_vision_task(task, ctx):
+            url = ctx.get("url") or "http://127.0.0.1:8000"
+            skip_screenshot = "element" in task.lower() and "analyze" not in task.lower() and "inspect" not in task.lower()
+            result = await _capture_frontend_async(url, skip_screenshot=skip_screenshot)
+            if result.get("error"):
+                raise HTTPException(status_code=500, detail=result.get("error"))
+        else:
+            # Web, Voice, Code: run sync orchestrator in thread pool.
+            result = await asyncio.to_thread(
+                orchestrator.delegate, task, ctx
+            )
 
         client = _get_weaviate_client()
         if client is not None:
@@ -105,7 +124,7 @@ async def handle_task(
                 client.data_object.create(
                     data_object={
                         "content": request.task,
-                        "context": str(request.context),
+                        "context": str(ctx),
                         "result": str(result),
                     },
                     class_name="TaskHistory",
@@ -134,6 +153,121 @@ async def recall_memory(
         query=query
     ).do()
     return result
+
+
+def _snapshot_dir() -> Path:
+    """Project-level dir where we write screenshots/summaries for the AI to read."""
+    env_dir = os.getenv("OMNI_AGENT_SNAPSHOT_DIR")
+    if env_dir:
+        return Path(env_dir).resolve()
+    # Default: .omni-agent in project root (parent of omni_agent package)
+    root = Path(__file__).resolve().parents[2]
+    return root / ".omni-agent"
+
+
+def _write_snapshot(result: Dict, snapshot_dir: Path) -> Dict[str, str]:
+    """Write screenshot and summary to snapshot_dir. Return paths written."""
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    written = {}
+    import base64
+    if result.get("image_base64"):
+        png_path = snapshot_dir / "screenshot.png"
+        png_path.write_bytes(base64.b64decode(result["image_base64"]))
+        written["screenshot"] = str(png_path)
+    lines = [
+        f"URL: {result.get('url', '')}",
+        f"Title: {result.get('title', '')}",
+        f"Viewport: {result.get('viewport', {})}",
+        "",
+        "Interactive elements:",
+    ]
+    for el in result.get("interactive_elements") or []:
+        lines.append(f"  - {el.get('tag', '')} {el.get('text', '')[:60]} (id={el.get('id')}, role={el.get('role')})")
+    summary_path = snapshot_dir / "frontend-summary.txt"
+    summary_path.write_text("\n".join(lines), encoding="utf-8")
+    written["summary"] = str(summary_path)
+    return written
+
+
+async def _capture_frontend_async(url: str, *, skip_screenshot: bool = False) -> Dict:
+    """Capture URL using Playwright async API (safe inside asyncio loop)."""
+    import base64 as _b64
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return {"error": "Playwright not installed", "hint": "pip install playwright && python -m playwright install chromium"}
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            page = await browser.new_page(viewport={"width": 1280, "height": 900})
+            await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            await page.wait_for_timeout(2000)
+            title = await page.title()
+            viewport_info = await page.evaluate("""() => ({
+                width: window.innerWidth,
+                height: window.innerHeight,
+                scrollHeight: document.body.scrollHeight,
+                title: document.title,
+            })""")
+            interactive = await page.evaluate("""() => {
+                const items = [];
+                document.querySelectorAll(
+                    'button, input, textarea, select, a[href], [role="button"], [role="tab"]'
+                ).forEach(el => {
+                    items.push({
+                        tag: el.tagName.toLowerCase(),
+                        type: el.type || undefined,
+                        text: (el.textContent || '').trim().slice(0, 100),
+                        id: el.id || undefined,
+                        name: el.name || undefined,
+                        placeholder: el.placeholder || undefined,
+                        role: el.getAttribute('role') || undefined,
+                        visible: el.offsetParent !== null,
+                    });
+                });
+                return items;
+            }""")
+            png_bytes = None
+            if not skip_screenshot:
+                png_bytes = await page.screenshot(full_page=True)
+            await page.close()
+            out = {
+                "status": "success",
+                "url": url,
+                "title": title,
+                "viewport": viewport_info,
+                "interactive_elements": interactive,
+                "element_count": len(interactive),
+            }
+            if png_bytes is not None:
+                out["image_base64"] = _b64.b64encode(png_bytes).decode("ascii")
+                out["image_size_bytes"] = len(png_bytes)
+                out["content_type"] = "image/png"
+            return out
+        finally:
+            await browser.close()
+
+
+@app.get("/vision/capture")
+async def vision_capture(
+    url: str = "http://127.0.0.1:8000",
+    save: bool = False,
+    x_api_key: str | None = Header(default=None),
+) -> Dict:
+    """Capture the frontend at *url* (screenshot + DOM). Uses Playwright async API so it is safe inside the asyncio loop. For AI: set save=1 to write to .omni-agent/."""
+    try:
+        _require_api_key(x_api_key)
+        result = await _capture_frontend_async(url)
+        if result.get("error"):
+            raise HTTPException(status_code=500, detail=result.get("error"))
+        if save:
+            written = _write_snapshot(result, _snapshot_dir())
+            result = {**result, "_saved": written}
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 if __name__ == "__main__":

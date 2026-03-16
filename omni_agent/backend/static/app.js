@@ -50,8 +50,28 @@
     return data;
   }
 
+  async function get(path, params) {
+    const key = getApiKey();
+    const headers = {};
+    if (key) headers['X-API-Key'] = key;
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    const res = await fetch(API_BASE + path + qs, { headers });
+    const data = await res.json().catch(() => ({ detail: res.statusText }));
+    if (res.status === 401) {
+      const err = new Error(data.detail || 'Unauthorized');
+      err.needKey = true;
+      throw err;
+    }
+    if (!res.ok) {
+      const msg = data.detail || data.error || data.hint || res.statusText;
+      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+    return data;
+  }
+
   function showResult(elId, data, isError) {
     const el = document.getElementById(elId);
+    el.classList.remove('result-box--empty');
     el.className = 'result-box' + (isError ? ' error' : '');
     el.innerHTML = '';
     if (data === null || data === undefined) return;
@@ -235,6 +255,93 @@
     runVision('list elements', {}).then(function () {
       const img = document.getElementById('visionImage');
       img.innerHTML = '';
+    });
+  });
+
+  // --- Capture for AI (real-time view for self-improvement)
+  var lastAiCapture = null;
+
+  function buildSummaryText(data) {
+    var lines = [
+      'URL: ' + (data.url || ''),
+      'Title: ' + (data.title || ''),
+      'Viewport: ' + JSON.stringify(data.viewport || {}),
+      '',
+      'Interactive elements:'
+    ];
+    (data.interactive_elements || []).forEach(function (el) {
+      lines.push('  - ' + (el.tag || '') + ' ' + (el.text || '').slice(0, 60) + ' (id=' + (el.id || '') + ', role=' + (el.role || '') + ')');
+    });
+    return lines.join('\n');
+  }
+
+  function setAiStatus(msg, isError) {
+    var el = document.getElementById('aiCaptureStatus');
+    el.textContent = msg;
+    el.style.color = isError ? 'var(--error)' : 'var(--text-muted)';
+  }
+
+  document.getElementById('aiCaptureBtn').addEventListener('click', async function () {
+    var btn = this;
+    var url = document.getElementById('visionUrl').value.trim() || 'http://127.0.0.1:8000';
+    var imgEl = document.getElementById('aiCaptureImage');
+    imgEl.innerHTML = '';
+    setAiStatus('Capturing…');
+    btn.disabled = true;
+    try {
+      var data = await get('/vision/capture', { url: url });
+      lastAiCapture = data;
+      if (data.image_base64) {
+        var img = document.createElement('img');
+        img.src = 'data:image/png;base64,' + data.image_base64;
+        img.alt = 'Screenshot for AI';
+        imgEl.appendChild(img);
+      }
+      setAiStatus('Captured. Click "Save to project" to write .omni-agent/ or "Copy summary" to paste for the AI.');
+    } catch (e) {
+      if (e.needKey) setApiKeyStatus('Set API key and click Save', false);
+      setAiStatus(e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('aiSaveBtn').addEventListener('click', async function () {
+    var btn = this;
+    var url = document.getElementById('visionUrl').value.trim() || 'http://127.0.0.1:8000';
+    setAiStatus('Saving to .omni-agent/…');
+    btn.disabled = true;
+    try {
+      var data = await get('/vision/capture', { url: url, save: '1' });
+      lastAiCapture = data;
+      var saved = data._saved || {};
+      setAiStatus('Saved: ' + (saved.screenshot || '') + ' ' + (saved.summary || ''));
+      var imgEl = document.getElementById('aiCaptureImage');
+      if (data.image_base64 && imgEl) {
+        imgEl.innerHTML = '';
+        var img = document.createElement('img');
+        img.src = 'data:image/png;base64,' + data.image_base64;
+        img.alt = 'Screenshot for AI';
+        imgEl.appendChild(img);
+      }
+    } catch (e) {
+      if (e.needKey) setApiKeyStatus('Set API key and click Save', false);
+      setAiStatus(e.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  document.getElementById('aiCopySummaryBtn').addEventListener('click', function () {
+    if (!lastAiCapture) {
+      setAiStatus('Capture first (Capture for AI or Save to project).', true);
+      return;
+    }
+    var text = buildSummaryText(lastAiCapture);
+    navigator.clipboard.writeText(text).then(function () {
+      setAiStatus('Summary copied to clipboard. Paste it for the AI.');
+    }).catch(function () {
+      setAiStatus('Could not copy. Copy the summary from the Vision result box.', true);
     });
   });
 })();

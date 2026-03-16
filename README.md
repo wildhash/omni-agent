@@ -123,6 +123,15 @@ curl -X POST http://localhost:8000/task \
 
 You can also force a specific agent by setting `context.agent` to one of: `web`, `code`, `voice`.
 
+## Capture for AI (see frontend in real time)
+
+So the AI can see your localhost frontend and suggest improvements:
+
+1. **From the UI** – Open the **Vision** tab, set the URL to your app (e.g. `http://127.0.0.1:8000`), then click **Capture for AI**. Use **Save to project** to write `.omni-agent/screenshot.png` and `.omni-agent/frontend-summary.txt` in the project. The AI can read those files when you ask it to look at the frontend.
+2. **From the CLI** – Run `python scripts/capture_for_ai.py` (optionally `--url http://127.0.0.1:7860`). Same files are written to `.omni-agent/`.
+
+Then in chat: share the screenshot and summary (or say “look at .omni-agent/screenshot.png and .omni-agent/frontend-summary.txt”) so the AI can see the current UI and suggest or apply changes.
+
 ## Testing
 
 ```bash
@@ -141,7 +150,7 @@ python -m omni_agent.ui.gradio_app
 
 Opens at http://127.0.0.1:7860. For **production use**, run the FastAPI app and use the built-in UI at http://localhost:8000.
 
-Open http://127.0.0.1:7860. For production-style binding and optional public link:
+For production-style binding and optional public link:
 
 ```bash
 GRADIO_SERVER_NAME=0.0.0.0 GRADIO_SERVER_PORT=7860 python -m omni_agent.ui.gradio_app
